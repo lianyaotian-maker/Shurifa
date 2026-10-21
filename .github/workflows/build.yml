@@ -12,6 +12,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-26.04
+    permissions:
+      contents: write
     env:
       BUILD_ABI: armeabi-v7a,arm64-v8a
     steps:
@@ -72,3 +74,16 @@ jobs:
           name: worldword-armeabi-v7a
           path: app/build/outputs/apk/debug/*armeabi-v7a*.apk
           retention-days: 90
+
+      - name: Push APKs to the apk branch
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          mkdir -p dist && cd dist
+          cp ../app/build/outputs/apk/debug/*arm64-v8a*.apk worldword-arm64-v8a.apk
+          cp ../app/build/outputs/apk/debug/*armeabi-v7a*.apk worldword-armeabi-v7a.apk
+          echo "Built from ${GITHUB_REF_NAME} ${GITHUB_SHA}" > BUILD.txt
+          git init -q -b apk
+          git add .
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "APK from ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" apk
