@@ -46,6 +46,9 @@ object UserDataManager {
         schema_list:
           - schema: rime_ice
           - schema: melt_eng
+        # the 中/英 key of the Worldword theme sends this hotkey
+        "key_binder/bindings/+":
+          - { when: always, accept: Control+Shift+1, select: .next }
     """
 
     private val lock = Mutex()

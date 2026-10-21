@@ -1,0 +1,291 @@
+# SPDX-FileCopyrightText: 2026 Worldword contributors
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Worldword 默认主题：仿 iOS 键盘的简洁风格
+# 四行布局、无数字行、按键不显示长按提示；浅色/深色随系统切换
+# encoding: utf-8
+
+config_version: "3.0"
+name: Worldword
+author: Worldword
+
+style:
+  __include: trime:/style
+  candidate_text_size: 20
+  candidate_view_height: 40
+  comment_text_size: 12
+  horizontal_gap: 6 #鍵水平間距
+  vertical_gap: 11 #鍵盤行距
+  key_height: 54
+  key_text_size: 24
+  key_long_text_size: 15
+  label_text_size: 24
+  round_corner: 6
+  shadow_radius: 0.0
+  keyboard_height: 216
+  keyboard_height_land: 180
+  preview_text_size: 32
+  enter_labels:
+    go: 前往
+    done: 完成
+    next: 下一项
+    pre: 上一项
+    search: 搜索
+    send: 发送
+    default: 换行
+
+preedit:
+  __include: trime:/preedit
+
+window:
+  __include: trime:/window
+
+fallback_colors:
+  __include: trime:/fallback_colors
+
+preset_color_schemes:
+  default:
+    name: 浅色
+    author: Worldword
+    light_scheme: default
+    dark_scheme: dark
+    back_color: 0xd1d3d9 #候選區背景
+    border_color: 0xd1d3d9 #邊框
+    candidate_separator_color: 0x00000000 #候選分割背景
+    candidate_text_color: 0x000000 #候選文字
+    comment_text_color: 0x6b6e75 #提示
+    hilited_back_color: 0xf2f2f7 #標明編碼背景
+    hilited_candidate_back_color: 0xd1d3d9 #標明候選背景
+    hilited_candidate_text_color: 0x000000 #標明候選文字
+    hilited_comment_text_color: 0x6b6e75 #標明提示
+    hilited_label_color: 0x000000
+    hilited_key_back_color: 0xacb1b9 #按下的字母鍵
+    hilited_key_text_color: 0x000000
+    hilited_key_symbol_color: 0x000000
+    hilited_off_key_back_color: 0xffffff #按下的功能鍵
+    hilited_off_key_text_color: 0x000000
+    hilited_on_key_back_color: 0xacb1b9
+    hilited_on_key_text_color: 0x000000
+    hilited_text_color: 0x007aff #標明編碼
+    key_back_color: 0xffffff #字母鍵
+    key_border_color: 0xffffff
+    key_symbol_color: 0x8a8a8e
+    key_text_color: 0x000000
+    keyboard_back_color: 0xd1d3d9 #鍵盤背景
+    label_color: 0x000000
+    off_key_back_color: 0xacb1b9 #功能鍵
+    off_key_text_color: 0x000000
+    on_key_back_color: 0xffffff #Shift 鎖定
+    on_key_text_color: 0x000000
+    preview_back_color: 0xffffff #按鍵提示背景
+    preview_text_color: 0x000000 #按鍵提示文字
+    shadow_color: 0x00000000
+    text_color: 0x000000 #編碼
+    text_back_color: 0xf2f2f7 #編碼區背景
+    hilited_candidate_button_color: 0xacb1b9
+  dark:
+    name: 深色
+    author: Worldword
+    light_scheme: default
+    dark_scheme: dark
+    back_color: 0x2b2b2d
+    border_color: 0x2b2b2d
+    candidate_separator_color: 0x00000000
+    candidate_text_color: 0xffffff
+    comment_text_color: 0x98989f
+    hilited_back_color: 0x3a3a3c
+    hilited_candidate_back_color: 0x2b2b2d
+    hilited_candidate_text_color: 0xffffff
+    hilited_comment_text_color: 0x98989f
+    hilited_label_color: 0xffffff
+    hilited_key_back_color: 0x3a3a3c
+    hilited_key_text_color: 0xffffff
+    hilited_key_symbol_color: 0xffffff
+    hilited_off_key_back_color: 0x636366
+    hilited_off_key_text_color: 0xffffff
+    hilited_on_key_back_color: 0x3a3a3c
+    hilited_on_key_text_color: 0xffffff
+    hilited_text_color: 0x0a84ff
+    key_back_color: 0x636366
+    key_border_color: 0x636366
+    key_symbol_color: 0x98989f
+    key_text_color: 0xffffff
+    keyboard_back_color: 0x2b2b2d
+    label_color: 0xffffff
+    off_key_back_color: 0x3a3a3c
+    off_key_text_color: 0xffffff
+    on_key_back_color: 0x636366
+    on_key_text_color: 0xffffff
+    preview_back_color: 0x636366
+    preview_text_color: 0xffffff
+    shadow_color: 0x00000000
+    text_color: 0xffffff
+    text_back_color: 0x3a3a3c
+    hilited_candidate_button_color: 0x3a3a3c
+
+tool_bar:
+  button_spacing: 8
+  primary_button:
+    background:
+      type: circle
+      normal: 0x00000000
+      highlight: hilited_candidate_button_color
+    foreground:
+      style: "ic@dots_horizontal"
+      normal: candidate_text_color
+      padding: 10
+    action: menu_keyboard
+    long_press_action: Settings
+  buttons:
+    - foreground:
+        style: "ic@keyboard_close"
+        normal: candidate_text_color
+      action: Hide
+    - foreground:
+        style: "ic@clipboard"
+        normal: candidate_text_color
+      action: clipboard_window
+    - foreground:
+        style: "ic@emoticon"
+        normal: candidate_text_color
+      action: liquid_keyboard_emoji
+
+liquid_keyboard:
+  __include: trime:/liquid_keyboard
+
+android_keys:
+  __include: trime:/android_keys
+
+preset_keys:
+  __include: trime:/preset_keys
+  ww_shift: {label: ⇧, send: Shift_L, shift_lock: ascii_long}
+  ww_backspace: {label: ⌫, repeatable: true, send: BackSpace}
+  ww_return_composing: {label: 确认, send: Return}
+  # 在雾凇拼音与英文方案间切换（快捷键由 default.custom.yaml 绑定）
+  ww_lang: {label: 中/英, send: Control+Shift+1}
+  ww_numbers: {label: "123", send: Eisu_toggle, select: symbols}
+  ww_symbols_more: {label: "#+=", send: Eisu_toggle, select: symbols_more}
+  ww_letters: {label: ABC, send: Eisu_toggle, select: .default}
+
+preset_keyboards:
+  default:
+    name: Worldword 拼音
+    author: Worldword
+    ascii_mode: 0
+    width: 10
+    height: 54
+    lock: true
+    keys:
+      - {click: q}
+      - {click: w}
+      - {click: e}
+      - {click: r}
+      - {click: t}
+      - {click: y}
+      - {click: u}
+      - {click: i}
+      - {click: o}
+      - {click: p}
+      - {width: 5}
+      - {click: a}
+      - {click: s}
+      - {click: d}
+      - {click: f}
+      - {click: g}
+      - {click: h}
+      - {click: j}
+      - {click: k}
+      - {click: l}
+      - {width: 5}
+      - {click: ww_shift, width: 14}
+      - {width: 1}
+      - {click: z}
+      - {click: x}
+      - {click: c}
+      - {click: v}
+      - {click: b}
+      - {click: n}
+      - {click: m}
+      - {width: 1}
+      - {click: ww_backspace, width: 14}
+      - {click: ww_numbers, width: 13}
+      - {click: ww_lang, width: 13}
+      - {click: space, width: 49}
+      - {click: Return, composing: ww_return_composing, width: 25}
+  symbols:
+    name: 数字与标点
+    author: Worldword
+    ascii_mode: 0
+    width: 10
+    height: 54
+    keys:
+      - {click: {commit: "1", label: "1"}}
+      - {click: {commit: "2", label: "2"}}
+      - {click: {commit: "3", label: "3"}}
+      - {click: {commit: "4", label: "4"}}
+      - {click: {commit: "5", label: "5"}}
+      - {click: {commit: "6", label: "6"}}
+      - {click: {commit: "7", label: "7"}}
+      - {click: {commit: "8", label: "8"}}
+      - {click: {commit: "9", label: "9"}}
+      - {click: {commit: "0", label: "0"}}
+      - {click: {commit: "-", label: "-"}}
+      - {click: {commit: "/", label: "/"}}
+      - {click: {commit: "：", label: "："}}
+      - {click: {commit: "；", label: "；"}}
+      - {click: {commit: "（", label: "（"}}
+      - {click: {commit: "）", label: "）"}}
+      - {click: {commit: "¥", label: "¥"}}
+      - {click: {commit: "@", label: "@"}}
+      - {click: {commit: "“", label: "“"}}
+      - {click: {commit: "”", label: "”"}}
+      - {click: ww_symbols_more, width: 14}
+      - {click: {commit: "。", label: "。"}, width: 14.4}
+      - {click: {commit: "，", label: "，"}, width: 14.4}
+      - {click: {commit: "、", label: "、"}, width: 14.4}
+      - {click: {commit: "？", label: "？"}, width: 14.4}
+      - {click: {commit: "！", label: "！"}, width: 14.4}
+      - {click: ww_backspace, width: 14}
+      - {click: ww_letters, width: 26}
+      - {click: space, width: 49}
+      - {click: Return, width: 25}
+  symbols_more:
+    name: 更多符号
+    author: Worldword
+    ascii_mode: 0
+    width: 10
+    height: 54
+    keys:
+      - {click: {commit: "【", label: "【"}}
+      - {click: {commit: "】", label: "】"}}
+      - {click: {commit: "｛", label: "｛"}}
+      - {click: {commit: "｝", label: "｝"}}
+      - {click: {commit: "#", label: "#"}}
+      - {click: {commit: "%", label: "%"}}
+      - {click: {commit: "^", label: "^"}}
+      - {click: {commit: "*", label: "*"}}
+      - {click: {commit: "+", label: "+"}}
+      - {click: {commit: "=", label: "="}}
+      - {click: {commit: "_", label: "_"}}
+      - {click: {commit: "—", label: "—"}}
+      - {click: {commit: "\\", label: "\\"}}
+      - {click: {commit: "|", label: "|"}}
+      - {click: {commit: "～", label: "～"}}
+      - {click: {commit: "《", label: "《"}}
+      - {click: {commit: "》", label: "》"}}
+      - {click: {commit: "$", label: "$"}}
+      - {click: {commit: "&", label: "&"}}
+      - {click: {commit: "·", label: "·"}}
+      - {click: ww_numbers, width: 14}
+      - {click: {commit: "……", label: "…"}, width: 14.4}
+      - {click: {commit: ",", label: ","}, width: 14.4}
+      - {click: {commit: ".", label: "."}, width: 14.4}
+      - {click: {commit: "?", label: "?"}, width: 14.4}
+      - {click: {commit: "!", label: "!"}, width: 14.4}
+      - {click: ww_backspace, width: 14}
+      - {click: ww_letters, width: 26}
+      - {click: space, width: 49}
+      - {click: Return, width: 25}
+  number:
+    __include: trime:/preset_keyboards/number
