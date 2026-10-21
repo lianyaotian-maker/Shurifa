@@ -28,6 +28,11 @@ class OpenCCDataPlugin : Plugin<Project> {
     private val Project.dataBaseDir
         get() = file("src/main/jni/librime/deps/opencc/data")
 
+    // OpenCC configs shipped by the bundled schemas (e.g. rime-ice's emoji
+    // suggestions), installed next to OpenCC's own data
+    private val Project.schemaDataDir
+        get() = file("data/rime/rime-ice/opencc")
+
     private val Project.dataInstallDir
         get() = assetsDir.resolve("shared/opencc")
 
@@ -40,6 +45,7 @@ class OpenCCDataPlugin : Plugin<Project> {
         val task =
             project.tasks.register<InstallOpenCCDataTask>(INSTALL_TASK) {
                 inputDir.set(project.dataBaseDir)
+                schemaInputDir.set(project.schemaDataDir)
                 outputDir.set(project.dataInstallDir)
             }
         // make sure OpenCC data have been installed before generating data checksums
@@ -64,6 +70,10 @@ class OpenCCDataPlugin : Plugin<Project> {
         @get:PathSensitive(PathSensitivity.RELATIVE)
         @get:InputDirectory
         abstract val inputDir: DirectoryProperty
+
+        @get:PathSensitive(PathSensitivity.RELATIVE)
+        @get:InputDirectory
+        abstract val schemaInputDir: DirectoryProperty
 
         @get:OutputDirectory
         abstract val outputDir: DirectoryProperty
@@ -109,6 +119,10 @@ class OpenCCDataPlugin : Plugin<Project> {
                     .toList()
             check(configs.isNotEmpty()) { "No OpenCC configs found in ${input.resolve("config")}" }
             configs.forEach { it.copyTo(output.resolve(it.name), overwrite = true) }
+            // plain-text configs and dictionaries, loaded by librime as is
+            schemaInputDir.get().asFile.listFiles().orEmpty().forEach {
+                it.copyTo(output.resolve(it.name), overwrite = true)
+            }
 
             // Package exactly the dictionaries the installed configs ask for: the
             // app compiles them to .ocd2 at runtime, and a missing one makes opencc
