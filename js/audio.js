@@ -538,19 +538,120 @@
   };
 
   // 脚步声：每踩一步放一下；雪地用碎石声压低音调再滤掉高频，听起来像踩雪
+  /* 合成脚步声（还没有录音时用）：每种地面预先做 6 个略有不同的脚步，拼成一条 */
+  function biquad(x, type, f, q, sr) {
+    const w = 2 * Math.PI * f / sr, al = Math.sin(w) / (2 * q), c = Math.cos(w);
+    let b0, b1, b2;
+    if (type === 'bp') { b0 = al; b1 = 0; b2 = -al; }
+    else if (type === 'lp') { b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; }
+    else { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = (1 + c) / 2; }
+    const a0 = 1 + al, a1 = -2 * c, a2 = 1 - al;
+    const y = new Float32Array(x.length);
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let i = 0; i < x.length; i++) {
+      const v = (b0 * x[i] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+      x2 = x1; x1 = x[i]; y2 = y1; y1 = v; y[i] = v;
+    }
+    return y;
+  }
+  function synthStep(type, sr) {
+    const len = Math.floor(sr * 0.34), out = new Float32Array(len);
+    const add = (arr, off, g) => { for (let i = 0; i < arr.length && off + i < len; i++) out[off + i] += arr[i] * g; };
+    const noise = (n) => { const a = new Float32Array(n); for (let i = 0; i < n; i++) a[i] = Math.random() * 2 - 1; return a; };
+    const envd = (a, att, dec) => { for (let i = 0; i < a.length; i++) { const t = i / sr; a[i] *= Math.min(1, t / att) * Math.exp(-t / dec); } return a; };
+    const thump = (f, dec, g, off) => {
+      const n = Math.floor(sr * dec * 5), a = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const t = i / sr; a[i] = Math.sin(2 * Math.PI * f * t * (1 - 0.3 * Math.min(1, t / dec))) * Math.min(1, t / 0.003) * Math.exp(-t / dec); }
+      add(a, off || 0, g);
+    };
+    // 很多随机的小“咔嚓”：碎石、雪、落叶都靠它
+    const grains = (count, span, fLo, fHi, q, dec, g, start) => {
+      for (let k = 0; k < count; k++) {
+        const off = Math.floor(sr * ((start || 0) + Math.pow(Math.random(), 1.6) * span));
+        const n = Math.floor(sr * dec * 6);
+        const a = envd(biquad(noise(n), 'bp', fLo + Math.random() * (fHi - fLo), q, sr), 0.0005, dec);
+        add(a, off, g * (0.4 + Math.random() * 0.6));
+      }
+    };
+    const swish = (dur, f, q, g, att, off) => add(envd(biquad(noise(Math.floor(sr * dur)), 'bp', f, q, sr), att, dur / 3.5), Math.floor(sr * (off || 0)), g);
+    switch (type) {
+      case 'grass':
+        swish(0.2, rnd(1700, 2400), 0.7, 0.6, 0.014);
+        grains(10, 0.11, 1800, 4500, 2, 0.002, 0.18);
+        thump(rnd(150, 190), 0.025, 0.3);
+        break;
+      case 'tall':
+        swish(0.3, rnd(2200, 3000), 0.5, 0.6, 0.02);
+        swish(0.25, rnd(4200, 5200), 0.7, 0.35, 0.03, 0.04);
+        grains(22, 0.2, 2500, 7000, 2, 0.002, 0.25);
+        thump(rnd(75, 95), 0.03, 0.3);
+        break;
+      case 'wood': {
+        // 鞋跟和脚尖两下：低沉的“咚”加上木板的中频共鸣（手机扬声器主要靠这部分）
+        const t2 = Math.floor(sr * rnd(0.05, 0.075));
+        thump(rnd(105, 135), 0.045, 0.6);
+        thump(rnd(420, 520), 0.03, 0.75);
+        thump(rnd(900, 1150), 0.012, 0.35);
+        swish(0.025, 2600, 1, 0.3, 0.001);
+        thump(rnd(440, 540), 0.025, 0.45, t2);
+        thump(rnd(1000, 1250), 0.01, 0.2, t2);
+        break;
+      }
+      case 'gravel':
+        grains(70, 0.13, 900, 4200, 3, 0.0018, 0.45);
+        swish(0.12, 1600, 0.6, 0.25, 0.005);
+        thump(rnd(70, 90), 0.03, 0.3);
+        break;
+      case 'leaves':
+        grains(45, 0.18, 2500, 7500, 4, 0.0012, 0.55);
+        swish(0.2, 3800, 0.6, 0.3, 0.01);
+        thump(rnd(75, 90), 0.025, 0.25);
+        break;
+      case 'snow':
+        grains(90, 0.17, 450, 1600, 4, 0.0025, 0.42);
+        grains(30, 0.15, 1600, 2800, 4, 0.0015, 0.25);
+        swish(0.16, 900, 0.7, 0.25, 0.01);
+        thump(rnd(65, 80), 0.035, 0.3);
+        break;
+    }
+    let pk = 0;
+    for (let i = 0; i < len; i++) pk = Math.max(pk, Math.abs(out[i]));
+    const g = 0.8 / (pk || 1);
+    for (let i = 0; i < len; i++) out[i] *= g * Math.min(1, (len - i) / (sr * 0.03));
+    return out;
+  }
+  function synthSteps() {
+    const sr = A.ctx.sampleRate, S = {};
+    for (const type of ['grass', 'tall', 'wood', 'gravel', 'leaves', 'snow']) {
+      const n = 6, len = Math.floor(sr * 0.34), gap = Math.floor(sr * 0.05);
+      const buf = A.ctx.createBuffer(1, n * (len + gap), sr), d = buf.getChannelData(0), hits = [];
+      for (let k = 0; k < n; k++) {
+        d.set(synthStep(type, sr), k * (len + gap));
+        hits.push([(k * (len + gap)) / sr, len / sr]);
+      }
+      S[type] = { buf, hits, synth: true };
+    }
+    return S;
+  }
   A.step = function (surface, vol) {
-    if (!ready() || !A.samples) return;
-    const S = A.samples.steps;
-    let k = surface, rate = rnd(0.9, 1.1), filt = null;
-    if (surface === 'snow') {
+    if (!ready()) return;
+    const real = (A.samples && A.samples.steps) || {};
+    const fake = A.synthSteps || (A.synthSteps = synthSteps());
+    let k = surface, rate = rnd(0.92, 1.08), filt = null, st = real[surface];
+    if (!st && surface === 'snow' && real.gravel) {
+      // 有碎石录音时，压低音调再滤掉高频，听起来像踩雪
+      st = real.gravel;
       k = 'gravel';
       rate = rnd(0.72, 0.82);
       filt = ['lowpass', 2600];
     }
-    const st = S[k] || S.grass;
-    if (!st) return;
+    if (!st && surface === 'tall' && real.grass) st = real.grass;
+    if (!st) {
+      st = fake[surface] || fake.grass;
+      k = 'f' + surface;
+    }
     const seg = pick(st.hits, k);
-    if (seg) playSeg(st.buf, seg, (vol === undefined ? 1 : vol) * rnd(0.75, 1), rate, 0.06, filt);
+    if (seg) playSeg(st.buf, seg, (vol === undefined ? 1 : vol) * rnd(0.75, 1) * (st.synth ? 0.55 : 1), rate, 0.06, filt);
   };
   A.chime = function (count, vol) {
     if (!ready()) return;
