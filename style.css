@@ -309,6 +309,75 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 #datebar.special #thumb::after { animation: ring 1.6s ease-out infinite; }
 @keyframes ring { 0% { transform: scale(0.85); opacity: 0.95; } 100% { transform: scale(2.3); opacity: 0; } }
 
+/* ---------- 八音盒选歌 ---------- */
+#musicbox {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px max(16px, var(--sar)) 16px max(16px, var(--sal));
+  background: rgba(28, 16, 22, 0.42);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  touch-action: manipulation;
+}
+#musicbox.on { opacity: 1; }
+#musicbox .card {
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px 18px 14px;
+  border-radius: 16px;
+  color: #f8ead6;
+  background: linear-gradient(160deg, #6b3f26, #4a2a19);
+  border: 2px solid #d9b25a;
+  box-shadow: 0 16px 44px rgba(20, 8, 10, 0.5), inset 0 0 0 4px rgba(226, 184, 90, 0.18);
+  transform: translateY(10px) scale(0.97);
+  transition: transform 0.4s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+#musicbox.on .card { transform: none; }
+.mb-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mb-head b { font-size: 17px; letter-spacing: 0.2em; color: #ffe2a8; }
+#mbNow { font-size: 12px; color: rgba(248, 234, 214, 0.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mbList { display: flex; flex-direction: column; gap: 8px; }
+.mb-song {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 226, 168, 0.28);
+  background: rgba(255, 240, 220, 0.08);
+  font-size: 16px;
+  letter-spacing: 0.08em;
+  text-align: left;
+}
+.mb-song small { margin-left: auto; font-size: 11px; letter-spacing: 0.02em; color: rgba(248, 234, 214, 0.6); }
+.mb-song .eq { display: inline-flex; gap: 2px; align-items: flex-end; width: 14px; height: 14px; }
+.mb-song .eq i { width: 3px; height: 4px; border-radius: 1px; background: #ffd27a; opacity: 0.35; }
+.mb-song.on { background: rgba(255, 210, 122, 0.22); border-color: #ffd27a; color: #fff6e4; }
+.mb-song.on .eq i { opacity: 1; animation: eq 0.9s ease-in-out infinite; }
+.mb-song.on .eq i:nth-child(2) { animation-delay: 0.2s; }
+.mb-song.on .eq i:nth-child(3) { animation-delay: 0.4s; }
+.mb-song.wait .eq i { opacity: 0.8; animation: eq 1.6s linear infinite; }
+@keyframes eq { 50% { height: 14px; } }
+.mb-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.mb-foot button {
+  padding: 8px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 226, 168, 0.4);
+  background: rgba(255, 240, 220, 0.1);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+#mbStop:disabled { opacity: 0.4; }
+@media (prefers-reduced-motion: reduce) { .mb-song.on .eq i, .mb-song.wait .eq i { animation: none; } }
+
 /* ---------- 长椅上的信 ---------- */
 #letter {
   position: fixed;

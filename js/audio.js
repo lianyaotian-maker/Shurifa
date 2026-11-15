@@ -1,4 +1,4 @@
-/* 草原小屋 · 声音：全部实时合成（猫叫、呼噜、风铃、八音盒和各种小音效），不依赖任何音频文件 */
+/* 草原小屋 · 声音：猫叫、呼噜、脚步、环境声用录音（sounds/），风铃、八音盒小曲和小音效实时合成 */
 (function () {
   'use strict';
   const A = { ctx: null, on: true, bus: null };
@@ -407,7 +407,7 @@
       for (const k in man.steps) S.steps[k] = { buf: await loadBuf(man.steps[k].file), hits: man.steps[k].hits };
       S.amb = {};
       for (const k in man.amb || {}) S.amb[k] = { buf: await loadBuf(man.amb[k].file), loop: man.amb[k].loop };
-      if (man.music) S.music = { buf: await loadBuf(man.music.file) };
+      A.songs = man.songs || [];
       A.samples = S;
     } catch (e) {
       A.samples = null;
@@ -671,62 +671,99 @@
       t += rnd(0.06, 0.22);
     }
   };
-  // 八音盒：有你上传的音频就放它（声音随距离变小，在屋外会变闷），没有就放内置的小曲
-  let custom = null;
-  A.music = function (name) {
-    if (!ready()) return 0;
-    const own = A.samples && A.samples.music;
-    if (own) {
-      A.stopMusic();
-      const ctx = A.ctx, src = ctx.createBufferSource(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
-      src.buffer = own.buf;
-      lp.type = 'lowpass';
-      lp.frequency.value = 18000;
-      g.gain.value = 0.8;
-      src.connect(lp);
-      lp.connect(g);
-      g.connect(A.bus.out);
-      const w = ctx.createGain();
-      w.gain.value = 0.12;
-      g.connect(w);
-      w.connect(A.bus.wet);
-      src.start(now());
-      custom = { src, g, lp };
-      src.onended = () => { if (custom && custom.src === src) custom = null; };
-      tuneStop = ctx.currentTime + own.buf.duration;
-      return own.buf.duration;
+  /* ---------- 八音盒 ----------
+     你的歌：从文件边下边放，单曲循环，全地图一样大声，只有回到八音盒点“停止”才会停。
+     生日歌：八音盒音色，循环，离得越远越小声，出了屋会变闷。 */
+  A.songs = [];
+  let cur = null;
+  A.loadSongList = async function () {
+    try {
+      const man = await (await fetch('sounds/sounds.json')).json();
+      A.songs = man.songs || [];
+    } catch (e) {
+      A.songs = [];
     }
-    const T = TUNES[name] || TUNES.lull, t0 = now() + 0.05;
+    return A.songs;
+  };
+  A.nowPlaying = () => (cur ? { type: cur.type, idx: cur.idx, loading: !!cur.loading } : null);
+  A.stopMusic = function () {
+    if (!cur) return;
+    const c = cur, t = A.ctx ? A.ctx.currentTime : 0;
+    cur = null;
+    tuneStop = 0;
+    c.g.gain.setTargetAtTime(0, t, 0.08);
+    setTimeout(() => {
+      if (c.el) {
+        c.el.pause();
+        c.el.removeAttribute('src');
+        c.el.load();
+      }
+      try { (c.node || c.g).disconnect(); } catch (e) { /* 忽略 */ }
+    }, 500);
+    if (A.onMusic) A.onMusic();
+  };
+  A.playSong = function (idx) {
+    if (!A.ctx) return;
+    A.resume();
+    A.stopMusic();
+    const song = A.songs[idx];
+    if (!song) return;
+    const el = new Audio();
+    el.src = 'sounds/' + song.file;
+    el.loop = true;
+    el.preload = 'auto';
+    el.setAttribute('playsinline', '');
+    const node = A.ctx.createMediaElementSource(el), g = A.ctx.createGain();
+    g.gain.value = 0.9;
+    node.connect(g);
+    g.connect(A.bus.out);
+    const c = (cur = { type: 'song', idx, el, node, g, loading: true });
+    const fail = () => { if (cur === c) { cur = null; if (A.onMusic) A.onMusic('error'); } };
+    el.addEventListener('playing', () => { if (cur === c) { c.loading = false; if (A.onMusic) A.onMusic(); } });
+    el.addEventListener('error', fail);
+    const p = el.play();
+    if (p && p.catch) p.catch(fail);
+    if (A.onMusic) A.onMusic();
+  };
+  function scheduleTune(c, t0) {
+    const T = TUNES.bday, bus = { ctx: A.ctx, out: c.g, wet: c.g };
     let t = t0;
     for (const n of T.notes) {
-      A.boxInto(A.bus, t, midi(n[0]), 0.2);
+      A.boxInto(bus, t, midi(n[0]), 0.22);
       t += n[1] * T.beat;
     }
     let tb = t0;
     for (const n of T.bass) {
-      if (n[0]) A.boxInto(A.bus, tb, midi(n[0] + 12), 0.09);
+      if (n[0]) A.boxInto(bus, tb, midi(n[0] + 12), 0.1);
       tb += n[1] * T.beat;
     }
-    tuneStop = t + 1.2;
-    return t - t0 + 1.5;
+    c.next = t + 2.2; // 唱完停一小会儿再从头开始
+  }
+  A.playBirthday = function () {
+    if (!ready()) return;
+    A.stopMusic();
+    const g = A.ctx.createGain(), lp = A.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 18000;
+    g.connect(lp);
+    lp.connect(A.bus.out);
+    const w = A.ctx.createGain();
+    w.gain.value = 0.35;
+    lp.connect(w);
+    w.connect(A.bus.wet);
+    const c = (cur = { type: 'bday', idx: -1, g, lp });
+    scheduleTune(c, now() + 0.05);
+    if (A.onMusic) A.onMusic();
   };
-  A.musicPlaying = () => !!A.ctx && A.ctx.currentTime < tuneStop;
-  A.hasOwnMusic = () => !!(A.samples && A.samples.music);
-  A.stopMusic = function () {
-    if (!custom) return;
-    const c = custom, t = A.ctx.currentTime;
-    custom = null;
-    tuneStop = 0;
-    c.g.gain.setTargetAtTime(0, t, 0.15);
-    c.src.stop(t + 0.8);
-  };
-  // 每帧由屋里调用：离八音盒越远越小声，出了屋就变闷
-  A.musicPlace = function (dist, outside) {
-    if (!custom) return;
+  // 每帧由屋里调用：生日歌接着循环、按距离调音量
+  A.tickMusic = function (dist, outside) {
+    if (!cur || cur.type !== 'bday' || !A.ctx) return;
     const t = A.ctx.currentTime;
-    custom.g.gain.setTargetAtTime(0.85 * Math.max(0.12, Math.min(1, 1.6 / Math.max(dist, 0.8))), t, 0.2);
-    custom.lp.frequency.setTargetAtTime(outside ? 900 : 18000, t, 0.3);
+    if (t > cur.next - 0.4) scheduleTune(cur, Math.max(cur.next, now()));
+    cur.g.gain.setTargetAtTime(Math.max(0.05, Math.min(1, 1.8 / Math.max(dist, 0.9))), t, 0.25);
+    cur.lp.frequency.setTargetAtTime(outside ? 900 : 18000, t, 0.3);
   };
+
   A.sfx = function (name, vol) {
     if (!ready()) return;
     const b = A.bus, t = now();

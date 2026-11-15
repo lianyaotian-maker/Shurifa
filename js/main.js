@@ -301,7 +301,52 @@
     G.Player.enabled = true;
   }
   letterEl.addEventListener('click', (e) => { if (e.target === letterEl || e.target.id === 'letterClose') closeLetter(); });
+  // 八音盒选歌面板
+  const mbEl = $('musicbox'), mbList = $('mbList');
+  function mbRender(err) {
+    const np = G.Audio.nowPlaying(), items = [];
+    if (B.on) items.push({ idx: -1, name: '生日快乐', note: '离得越远越小声' });
+    G.Audio.songs.forEach((s, i) => items.push({ idx: i, name: s.name, note: '全草原都听得到' }));
+    mbList.innerHTML = '';
+    for (const it of items) {
+      const b = document.createElement('button');
+      const on = np && np.idx === it.idx;
+      b.className = 'mb-song' + (on ? (np.loading ? ' wait' : ' on') : '');
+      b.innerHTML = '<span class="eq"><i></i><i></i><i></i></span><span></span><small></small>';
+      b.children[1].textContent = it.name;
+      b.children[2].textContent = on && np.loading ? '加载中…' : it.note;
+      b.addEventListener('click', () => {
+        G.Audio.init();
+        if (it.idx < 0) G.Audio.playBirthday();
+        else G.Audio.playSong(it.idx);
+        G.Audio.sfx('tick', 0.6);
+      });
+      mbList.appendChild(b);
+    }
+    const cur = np && items.find((x) => x.idx === np.idx);
+    $('mbNow').textContent = err === 'error' ? '这首歌没能加载，换一首试试' : cur ? '正在放：' + cur.name : '没有在放歌';
+    $('mbStop').disabled = !np;
+  }
+  G.Audio.onMusic = (err) => { if (!mbEl.hidden) mbRender(err); };
+  function closeMb() {
+    mbEl.classList.remove('on');
+    setTimeout(() => { if (!mbEl.classList.contains('on')) mbEl.hidden = true; }, 400);
+    G.Player.enabled = true;
+  }
+  mbEl.addEventListener('click', (e) => { if (e.target === mbEl || e.target.id === 'mbClose') closeMb(); });
+  $('mbStop').addEventListener('click', () => { G.Audio.stopMusic(); G.Audio.sfx('tick', 0.6); });
   G.UI = {
+    async musicbox() {
+      G.Audio.init();
+      if (!G.Audio.songs.length) await G.Audio.loadSongList();
+      // 5.21 那天：没在放歌时，默认放生日歌
+      if (B.on && !G.Audio.nowPlaying()) G.Audio.playBirthday();
+      mbEl.hidden = false;
+      G.Player.enabled = false;
+      G.Player.jx = G.Player.jy = 0;
+      mbRender();
+      requestAnimationFrame(() => mbEl.classList.add('on'));
+    },
     letter() {
       letterEl.hidden = false;
       G.Player.enabled = false;

@@ -165,6 +165,31 @@
     return new THREE.Vector3(-dx, 1, -dz).normalize();
   }
 
+  // 镜子：映出屋里暖暖的灯光和木墙，带一道斜斜的高光
+  function mirrorTex() {
+    return G.tex(G.canvas(128, 96, (x) => {
+      const g = x.createLinearGradient(0, 0, 0, 96);
+      g.addColorStop(0, '#8a7a6a');
+      g.addColorStop(0.55, '#c8a27a');
+      g.addColorStop(1, '#6e5440');
+      x.fillStyle = g;
+      x.fillRect(0, 0, 128, 96);
+      const r = x.createRadialGradient(40, 30, 2, 40, 30, 40);
+      r.addColorStop(0, 'rgba(255,230,180,0.9)');
+      r.addColorStop(1, 'rgba(255,230,180,0)');
+      x.fillStyle = r;
+      x.fillRect(0, 0, 128, 96);
+      x.fillStyle = 'rgba(255,255,255,0.35)';
+      x.beginPath();
+      x.moveTo(70, 0); x.lineTo(92, 0); x.lineTo(52, 96); x.lineTo(30, 96);
+      x.fill();
+      x.fillStyle = 'rgba(255,255,255,0.18)';
+      x.beginPath();
+      x.moveTo(100, 0); x.lineTo(108, 0); x.lineTo(68, 96); x.lineTo(60, 96);
+      x.fill();
+    }));
+  }
+
   /* ---------- 小面包：碗里的火鸡面贴图 ---------- */
   function noodleTex() {
     return G.tex(G.canvas(256, 256, (x) => {
@@ -368,44 +393,137 @@
     bowl.position.set(T.x - 0.05, TY + 0.025, T.z + 0.35);
     G.Tap.add(bowl, 5, (h, x, y) => I.eat(x, y), { hint: new THREE.Vector3(bowl.position.x, bowl.position.y + 0.3, bowl.position.z), hintDist: 4.5 });
 
-    /* 八音盒：盒子上站着一只会转圈的小鸡 */
+    /* 八音盒：放在窗下的小柜子上。胡桃木盒身、黄铜包角，盒盖内侧有镜子，
+       丝绒内衬里有带钉的音筒和簧片梳，小鸡站在小舞台上转圈，侧面有发条钥匙 */
+    const cab = { x: 3.18, z: -1.4 };
+    const cabTop = FY + 0.78;
+    const cabM = new G.Merger();
+    const cabP = new THREE.Matrix4().makeRotationY(-Math.PI / 2).setPosition(cab.x, 0, cab.z);
+    cabM.box(0.62, 0.04, 0.4, 0, cabTop - 0.02, 0, 'wood', { parent: cabP });
+    cabM.box(0.58, 0.7, 0.36, 0, FY + 0.39, 0, 'wood', { parent: cabP });
+    cabM.box(0.26, 0.28, 0.01, -0.14, FY + 0.5, 0.181, 'cream', { parent: cabP });
+    cabM.box(0.26, 0.28, 0.01, 0.14, FY + 0.5, 0.181, 'cream', { parent: cabP });
+    for (const sx of [-0.27, 0.27]) for (const sz of [-0.15, 0.15]) cabM.box(0.04, 0.04, 0.04, sx, FY + 0.02, sz, 'wood', { parent: cabP });
+    scene.add(cabM.build({ wood: SH.room(0x9a6a44, G.House.tex.floor), cream: SH.room(0xe9dcc4, null) }));
+    for (const sx of [-0.04, 0.04]) {
+      const kn = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), SH.room(0xd9b25a, null, { emit: 0.2 }));
+      kn.position.set(cab.x - 0.19, FY + 0.5, cab.z + sx);
+      scene.add(kn);
+    }
+    G.Colliders.rects.push({ x0: cab.x - 0.21, x1: 3.45, z0: cab.z - 0.32, z1: cab.z + 0.32 });
+
     const mb = new THREE.Group();
-    const walnut = SH.room(0x7a4a2e, null), brass = SH.room(0xe0b85a, null, { emit: 0.15 });
-    const mbase = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.1), walnut);
-    mbase.position.y = 0.03;
-    const lid = new THREE.Group();
-    lid.position.set(0, 0.06, -0.05);
-    const lidM = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, 0.1), walnut);
-    lidM.position.set(0, 0.006, 0.05);
-    lid.add(lidM);
-    lid.rotation.x = -1.25;
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.09, 12), brass);
-    drum.rotation.z = Math.PI / 2;
-    drum.position.set(0, 0.066, 0.005);
-    const crank = new THREE.Group();
-    crank.position.set(0.075, 0.035, 0);
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.035, 0.008), brass);
-    arm.position.y = 0.0175;
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), SH.room(0xfff0dc, null));
-    knob.position.set(0.006, 0.035, 0);
-    crank.add(arm, knob);
+    const walnut = SH.room(0x6b3f26, null), walnutL = SH.room(0x8a5634, null), inlay = SH.room(0xe2c79a, null);
+    const brass = SH.room(0xe2b85a, null, { emit: 0.22 }), steel = SH.room(0xc9d2da, null, { emit: 0.18 });
+    const velvet = SH.room(0x8e1e2c, null), mirror = SH.room(0xffffff, mirrorTex(), { emit: 0.12 }), dark = SH.room(0x1e1410, null);
+    const W = 0.34, D = 0.22, Hb = 0.13; // 宽、深、盒身高
+    const box = (m, w, h, d, x, y, z, parent) => {
+      const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+      o.position.set(x, y, z);
+      (parent || mb).add(o);
+      return o;
+    };
+    // 底座、盒身、腰线、四角黄铜包角、四个小圆脚
+    box(walnut, W + 0.016, 0.02, D + 0.016, 0, 0.032, 0);
+    box(walnutL, W, Hb - 0.012, D, 0, 0.042 + (Hb - 0.012) / 2, 0);
+    box(inlay, W + 0.004, 0.008, D + 0.004, 0, 0.095, 0);
+    box(walnut, W + 0.006, 0.012, D + 0.006, 0, 0.042 + Hb - 0.012, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      box(brass, 0.014, Hb - 0.006, 0.014, sx * (W / 2 + 0.002), 0.042 + (Hb - 0.006) / 2, sz * (D / 2 + 0.002));
+      const ft = new THREE.Mesh(new THREE.SphereGeometry(0.013, 12, 8), brass);
+      ft.position.set(sx * (W / 2 - 0.02), 0.013, sz * (D / 2 - 0.02));
+      mb.add(ft);
+    }
+    // 正面的锁扣和钥匙孔
+    box(brass, 0.04, 0.034, 0.004, 0, 0.115, D / 2 + 0.002);
+    box(dark, 0.006, 0.014, 0.002, 0, 0.113, D / 2 + 0.0045);
+    // 丝绒内衬（盒口内侧）
+    const top = 0.042 + Hb;
+    box(velvet, W - 0.03, 0.004, D - 0.03, 0, top - 0.01, 0);
+    // 音筒（带小钉）和簧片梳
+    const drum = new THREE.Group();
+    drum.position.set(0.02, top + 0.008, -0.035);
+    const dc = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.15, 24), brass);
+    dc.rotation.z = Math.PI / 2;
+    drum.add(dc);
+    const pinG = new THREE.SphereGeometry(0.0026, 5, 4);
+    const pins = new THREE.InstancedMesh(pinG, steel, 70);
+    const pm = new THREE.Matrix4(), pr2 = G.rng(9);
+    for (let i = 0; i < 70; i++) {
+      const a = pr2() * Math.PI * 2, x = -0.07 + (Math.floor(pr2() * 18) / 17) * 0.14;
+      pm.makeTranslation(x, Math.cos(a) * 0.023, Math.sin(a) * 0.023);
+      pins.setMatrixAt(i, pm);
+    }
+    drum.add(pins);
+    for (const sx of [-1, 1]) box(steel, 0.008, 0.03, 0.03, 0.02 + sx * 0.082, top - 0.002, -0.035);
+    mb.add(drum);
+    box(steel, 0.15, 0.008, 0.02, 0.02, top - 0.004, 0.012);
+    for (let i = 0; i < 18; i++) box(steel, 0.0045, 0.0022, 0.03, 0.02 - 0.07 + i * (0.14 / 17), top + 0.002, -0.005);
+    // 发条（侧面的蝴蝶钥匙）
+    const key = new THREE.Group();
+    key.position.set(W / 2 + 0.012, 0.085, 0);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.03, 8), brass);
+    shaft.rotation.z = Math.PI / 2;
+    shaft.position.x = 0.012;
+    key.add(shaft);
+    for (const sy of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.SphereGeometry(0.018, 14, 10), brass);
+      wing.scale.set(0.25, 1, 0.75);
+      wing.position.set(0.03, sy * 0.017, 0);
+      key.add(wing);
+    }
+    mb.add(key);
+    // 小舞台和转圈的小鸡
+    const stage = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.012, 24), brass);
+    stage.position.set(-0.1, top + 0.004, 0.035);
+    mb.add(stage);
     const chick = new THREE.Group();
-    chick.position.set(-0.035, 0.066, 0.022);
-    const yel = SH.room(0xffd84a, null, { emit: 0.12 });
-    const cb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 8), yel);
-    cb.position.y = 0.018;
-    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.0125, 12, 8), yel);
-    ch.position.set(0, 0.04, 0.004);
-    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.005, 0.012, 6), SH.room(0xff8a3d, null));
+    chick.position.set(-0.1, top + 0.01, 0.035);
+    const yel = SH.room(0xffd84a, null, { emit: 0.15 });
+    const cb = new THREE.Mesh(new THREE.SphereGeometry(0.026, 16, 12), yel);
+    cb.position.y = 0.026;
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), yel);
+    ch.position.set(0, 0.056, 0.006);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.0065, 0.016, 8), SH.room(0xff8a3d, null));
     beak.rotation.x = Math.PI / 2;
-    beak.position.set(0, 0.04, 0.019);
-    chick.add(cb, ch, beak);
-    mb.add(mbase, lid, drum, crank, chick);
-    mb.position.set(T.x - 0.27, TY + 0.025, T.z - 0.5);
-    mb.rotation.y = -Math.PI / 2 - 0.35;
+    beak.position.set(0, 0.055, 0.027);
+    for (const sx of [-1, 1]) {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 8, 6), dark);
+      e.position.set(sx * 0.008, 0.062, 0.021);
+      chick.add(e);
+      const wing = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), yel);
+      wing.scale.set(0.45, 0.9, 1.2);
+      wing.position.set(sx * 0.025, 0.028, 0);
+      chick.add(wing);
+    }
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.006, 0.003, 6, 10), SH.room(0xff8fb1, null, { emit: 0.15 }));
+    bow.position.set(0.006, 0.075, 0.004);
+    chick.add(cb, ch, beak, bow);
+    mb.add(chick);
+    // 盒盖：铰链在后上沿，打开约 105°，内侧是镜子，外侧中间嵌一块黄铜小牌
+    const lid = new THREE.Group();
+    lid.position.set(0, top + 0.002, -D / 2);
+    const lo = new THREE.Mesh(new THREE.BoxGeometry(W + 0.006, 0.016, D + 0.006), walnut);
+    lo.position.set(0, 0.008, D / 2);
+    const plaque = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.003, 28), brass);
+    plaque.scale.set(1.5, 1, 1);
+    plaque.position.set(0, 0.0175, D / 2);
+    const inl = new THREE.Mesh(new THREE.BoxGeometry(W - 0.02, 0.002, D - 0.02), inlay);
+    inl.position.set(0, 0.0165, D / 2);
+    const mframe = new THREE.Mesh(new THREE.BoxGeometry(W - 0.03, 0.003, D - 0.03), brass);
+    mframe.position.set(0, -0.001, D / 2);
+    const mir = new THREE.Mesh(new THREE.BoxGeometry(W - 0.05, 0.002, D - 0.05), mirror);
+    mir.position.set(0, -0.003, D / 2);
+    lid.add(lo, inl, plaque, mframe, mir);
+    lid.rotation.x = -1.83;
+    mb.add(lid);
+    mb.position.set(cab.x, cabTop, cab.z);
+    mb.rotation.y = -Math.PI / 2;
+    mb.scale.setScalar(1.15);
     scene.add(mb);
-    I.mbox = { g: mb, drum, crank, chick, play: 0, note: 0, flip: 0 };
-    G.Tap.add(G.Tap.proxy(mb, 0.13, 0, 0.05, 0), 5, () => I.playMusic(), { hint: new THREE.Vector3(mb.position.x, mb.position.y + 0.24, mb.position.z), hintDist: 4.5 });
+    I.mbox = { g: mb, drum, key, chick, note: 0, flip: 0 };
+    chick.userData.y0 = chick.position.y;
+    G.Tap.add(G.Tap.proxy(mb, 0.24, 0, 0.12, 0), 5, () => G.UI.musicbox(), { hint: new THREE.Vector3(cab.x - 0.05, cabTop + 0.42, cab.z), hintDist: 5 });
     scene.add(bowl);
     I.bowl = bowl;
     I.steamOrigin = new THREE.Vector3(bowl.position.x, bowl.position.y + 0.09, bowl.position.z);
@@ -478,7 +596,8 @@
         z = -2.05 + r() * 4.4;
         const inTable = x > TABLE.x - 0.6 && x < TABLE.x + 0.6 && z > TABLE.z - 0.85 && z < TABLE.z + 0.85;
         const inShelf = x < -2.95 && z < 0.35;
-        if (!inTable && !inShelf) break;
+        const inCab = x > 2.85 && z > -1.85 && z < -0.95;
+        if (!inTable && !inShelf && !inCab) break;
       }
       const ax = new THREE.Vector3(r() - 0.5, r() - 0.5, r() - 0.5).normalize();
       const n = mound(x, z) > 0.02 ? moundNormal(x, z) : new THREE.Vector3(0, 1, 0);
@@ -545,21 +664,6 @@
     G.UI.spicy();
     G.UI.pop(HOT[hotIdx++ % HOT.length], x, y);
   };
-  I.playMusic = function () {
-    const m = I.mbox;
-    if (m.play > 0.5) {
-      // 你自己的音频可能很长：再点一下就停
-      if (G.Audio.hasOwnMusic()) {
-        G.Audio.stopMusic();
-        m.play = 0;
-        G.Audio.sfx('tick', 0.6);
-      }
-      return;
-    }
-    G.Audio.sfx('tick', 0.6);
-    m.play = G.Audio.music(I.bdayNow ? 'bday' : 'lull') || G.Audio.tuneLength(I.bdayNow ? 'bday' : 'lull');
-  };
-
   I.update = function (dt, time, bday, wantCake) {
     I.bdayNow = bday > 0.5;
     // 吊灯开关
@@ -569,22 +673,23 @@
     L.bulb.material.color.setRGB(0.22 + 0.78 * L.k, 0.2 + 0.74 * L.k, 0.17 + 0.61 * L.k);
     L.lg1.material.opacity = 0.75 * L.k;
     L.lg2.material.opacity = 0.14 * L.k;
-    // 八音盒
-    const mbx = I.mbox;
-    if (mbx.play > 0) {
-      mbx.play -= dt;
-      const P = G.Player;
-      G.Audio.musicPlace(Math.hypot(P.x - mbx.g.position.x, P.z - mbx.g.position.z), !P.inHouse(P.x, P.z));
-      mbx.crank.rotation.x += dt * 5;
-      mbx.drum.rotation.x += dt * 2;
-      mbx.chick.rotation.y += dt * 2.4;
+    // 八音盒：有歌在放时，音筒、发条和小鸡都转起来，冒出音符
+    const mbx = I.mbox, np = G.Audio.nowPlaying && G.Audio.nowPlaying();
+    if (np && !np.loading) {
+      mbx.drum.rotation.x += dt * 1.6;
+      mbx.key.rotation.x -= dt * 1.1;
+      mbx.chick.rotation.y += dt * 2.2;
+      mbx.chick.position.y = mbx.chick.userData.y0 + Math.abs(Math.sin(time * 4.4)) * 0.004;
       mbx.note -= dt;
-      if (mbx.note <= 0 && mbx.play > 1) {
-        mbx.note = 0.5;
+      if (mbx.note <= 0) {
+        mbx.note = 0.55;
         mbx.flip ^= 1;
-        G.Things.emit(mbx.flip ? 'note' : 'note2', new THREE.Vector3(mbx.g.position.x, mbx.g.position.y + 0.14, mbx.g.position.z), 1, { spread: 0.06, velRand: 0.12, vel: new THREE.Vector3(0, 0.16, 0) });
+        const p = mbx.g.position;
+        G.Things.emit(mbx.flip ? 'note' : 'note2', new THREE.Vector3(p.x - 0.05, p.y + 0.3, p.z), 1, { spread: 0.08, velRand: 0.12, vel: new THREE.Vector3(-0.05, 0.16, 0) });
       }
     }
+    const PL = G.Player;
+    G.Audio.tickMusic(Math.hypot(PL.x - mbx.g.position.x, PL.z - mbx.g.position.z), !PL.inHouse(PL.x, PL.z));
     let dirty = false;
     for (const p of I.pools) dirty = updatePool(p, dt) || dirty;
     if (dirty) I.packs.instanceMatrix.needsUpdate = true;

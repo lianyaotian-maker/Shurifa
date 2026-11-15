@@ -32,5 +32,8 @@ Ambience
 CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
 CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
 
+Music box songs (song1–3.mp3: 安静, 彩虹, 稻香) were provided by the page's
+owner.
+
 Everything else (chimes, music box, other small effects) is synthesized in
 the browser.
