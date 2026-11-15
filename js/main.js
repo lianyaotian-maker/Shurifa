@@ -419,6 +419,8 @@
     requestAnimationFrame(frame);
     let dt = (now - last) / 1000;
     last = now;
+    // 加载刚结束时，第一帧的时间戳可能比“上一帧”还早，时间差不能是负数
+    if (!(dt > 0)) dt = 0;
     if (dt > 0.1) dt = 0.1;
     if (G.debug.pause) return;
     tick(dt);
