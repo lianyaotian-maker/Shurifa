@@ -296,6 +296,13 @@
     const moved = Math.hypot(C.x - px, C.z - pz);
     C.speed = moved / Math.max(dt, 1e-4);
     C.phase += moved * 11;
+    // 走路时项圈上的小铃铛偶尔叮一下
+    C.jingle = (C.jingle || 0) - moved;
+    if (C.jingle <= 0) {
+      C.jingle = 0.5 + Math.random() * 0.6;
+      const d = Math.hypot(P().x - C.x, P().z - C.z);
+      if (d < 7) G.Audio.sfx('jingle', G.clamp(1.3 - d / 5, 0.15, 1));
+    }
     C.stuck = moved < v * dt * 0.3 ? (C.stuck || 0) + dt : 0;
     return false;
   }

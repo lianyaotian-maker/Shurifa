@@ -221,7 +221,10 @@
     const sp = Math.hypot(mvx, mvz);
     if (sp > 0.1) {
       P.moved += sp * dt;
+      const before = Math.floor(P.bob / Math.PI);
       P.bob += sp * dt * 2.2;
+      // 每迈出一步响一声脚步（在空中不算）
+      if (Math.floor(P.bob / Math.PI) !== before && P.vy === 0 && P.enabled && P.onStep) P.onStep(false);
       if (P.moved > 0.6) P.noteMove();
     }
     collide();
@@ -230,6 +233,7 @@
       P.vy -= 13 * dt;
       P.y += P.vy * dt;
       if (P.y <= ground) {
+        if (P.vy < -2.5 && P.onStep) P.onStep(true); // 跳起后落地
         P.y = ground;
         P.vy = 0;
       }

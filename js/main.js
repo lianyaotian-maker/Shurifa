@@ -302,6 +302,19 @@
       el.classList.add('go');
     }
   };
+  // 脚步声：根据脚下是木头、小路、雪地、落叶还是草地来选
+  let lastS = null;
+  G.Player.onStep = (land) => {
+    const P = G.Player, pr = G.Field.PORCH;
+    let s;
+    if ((Math.abs(P.x) < 3.6 && Math.abs(P.z) < 2.8) || (P.x > pr.x0 && P.x < pr.x1 && P.z > 2.8 && P.z < 4.45)) s = 'wood';
+    else if (U.uSnow.value > 0.45) s = 'snow';
+    else if (G.Field.pathDist(P.x, P.z) < 0.85) s = 'gravel';
+    else if (lastS && lastS.leaves > 0.45) s = 'leaves';
+    else if (U.uGrassH.value > 1.12) s = 'tall';
+    else s = 'grass';
+    G.Audio.step(s, land ? 1.25 : s === 'wood' ? 0.7 : 0.8);
+  };
   G.Player.onSeat = (seat) => {
     const el = $('seat');
     el.textContent = seat ? seat.label || '拨动摇杆起身' : '';
@@ -449,6 +462,7 @@
     shownDay = Math.abs(dd) < 0.01 ? targetDay : shownDay + dd * Math.min(1, dt * 3.2);
     shownDay = ((shownDay % 365) + 365) % 365;
     const S = SEA.sample(shownDay);
+    lastS = S;
     applySeason(S);
     const hint = updateBirthday(dt);
     U.uGrassH.value *= 1 - 0.3 * B.amt; // 那一天草矮一点，让花海露出来

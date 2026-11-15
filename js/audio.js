@@ -237,11 +237,17 @@
     if (on) {
       if (!purr) {
         const src = ctx.createBufferSource();
-        src.buffer = A.purrBuf || (A.purrBuf = makePurr(ctx));
+        const real = A.samples && A.samples.purr;
+        if (real) {
+          // 真实的呼噜录音
+          src.buffer = real.buf;
+          src.loopStart = real.loop[0];
+          src.loopEnd = real.loop[1];
+        } else src.buffer = A.purrBuf || (A.purrBuf = makePurr(ctx));
         src.loop = true;
         const lp = ctx.createBiquadFilter();
         lp.type = 'lowpass';
-        lp.frequency.value = 1700;
+        lp.frequency.value = real ? 6000 : 1700;
         const g = ctx.createGain();
         g.gain.value = 0;
         src.connect(lp);
@@ -365,6 +371,7 @@
       A.bus = A.makeBus(A.ctx);
       A.bus.out.gain.value = A.on ? 0.9 : 0;
       A.resume();
+      A.loadSamples();
     } catch (e) {
       A.ctx = null;
     }
@@ -379,9 +386,96 @@
   const ready = () => A.ctx && A.on && A.ctx.state === 'running';
   const now = () => A.ctx.currentTime + 0.02;
 
+  /* ---------- 真实录音：猫叫、呼噜、脚步（加载失败时退回合成音） ---------- */
+  A.samples = null;
+  function decode(ab) {
+    return new Promise((res, rej) => A.ctx.decodeAudioData(ab, res, rej));
+  }
+  async function loadBuf(f) {
+    const r = await fetch('sounds/' + f);
+    if (!r.ok) throw new Error(f);
+    return decode(await r.arrayBuffer());
+  }
+  A.loadSamples = async function () {
+    if (A.samples || A.loading || !A.ctx) return;
+    A.loading = true;
+    try {
+      const man = await (await fetch('sounds/sounds.json')).json();
+      const S = { steps: {} };
+      S.meow = { buf: await loadBuf(man.meow.file), segs: man.meow.segs };
+      S.purr = { buf: await loadBuf(man.purr.file), loop: man.purr.loop };
+      for (const k in man.steps) S.steps[k] = { buf: await loadBuf(man.steps[k].file), hits: man.steps[k].hits };
+      A.samples = S;
+    } catch (e) {
+      A.samples = null;
+    }
+    A.loading = false;
+  };
+  function playSeg(buf, seg, vol, rate, wetAmt, filt) {
+    const ctx = A.ctx, t = now(), s = ctx.createBufferSource();
+    s.buffer = buf;
+    s.playbackRate.value = rate;
+    const g = ctx.createGain();
+    const len = seg[1];
+    // 很短的淡入淡出，避免切口处“咔”的一声
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.setValueAtTime(vol, t + Math.max(0.01, len / rate - 0.03));
+    g.gain.linearRampToValueAtTime(0, t + len / rate);
+    let node = s;
+    if (filt) {
+      const f = ctx.createBiquadFilter();
+      f.type = filt[0];
+      f.frequency.value = filt[1];
+      s.connect(f);
+      node = f;
+    }
+    node.connect(g);
+    g.connect(A.bus.out);
+    if (wetAmt) {
+      const w = ctx.createGain();
+      w.gain.value = wetAmt;
+      g.connect(w);
+      w.connect(A.bus.wet);
+    }
+    s.start(t, seg[0], len + 0.02);
+    return len / rate;
+  }
+  const lastSeg = {};
+  function pick(list, key) {
+    if (!list || !list.length) return null;
+    let i = Math.floor(Math.random() * list.length);
+    if (list.length > 1 && i === lastSeg[key]) i = (i + 1) % list.length;
+    lastSeg[key] = i;
+    return list[i];
+  }
+  const MEOW_GROUP = { mew: ['short', 'mid'], chirp: ['short', 'mid'], meow: ['mid', 'long'], ask: ['mid', 'short'], long: ['long', 'mid'] };
   A.meow = function (kind, vol) {
     if (!ready()) return 0;
+    const M = A.samples && A.samples.meow;
+    if (M) {
+      const groups = MEOW_GROUP[kind] || ['mid'];
+      for (const gname of groups) {
+        const seg = pick(M.segs[gname], gname);
+        if (seg) return playSeg(M.buf, seg, 0.95 * (vol === undefined ? 1 : vol), rnd(0.96, 1.05), 0.18);
+      }
+    }
     return A.meowInto(A.bus, now(), kind, { pitch: rnd(0.94, 1.07), stretch: rnd(0.92, 1.1), vol: vol });
+  };
+  // 脚步声：每踩一步放一下；雪地用碎石声压低音调再滤掉高频，听起来像踩雪
+  A.step = function (surface, vol) {
+    if (!ready() || !A.samples) return;
+    const S = A.samples.steps;
+    let k = surface, rate = rnd(0.9, 1.1), filt = null;
+    if (surface === 'snow') {
+      k = 'gravel';
+      rate = rnd(0.72, 0.82);
+      filt = ['lowpass', 2600];
+    }
+    const st = S[k] || S.grass;
+    if (!st) return;
+    const seg = pick(st.hits, k);
+    if (seg) playSeg(st.buf, seg, (vol === undefined ? 1 : vol) * rnd(0.75, 1), rate, 0.06, filt);
   };
   A.chime = function (count, vol) {
     if (!ready()) return;
@@ -470,6 +564,10 @@
         break;
       case 'heart': // 冒爱心时很轻的一声
         A.boxInto(b, t, 1567.98, 0.06 * vol);
+        break;
+      case 'jingle': // 鸡柳项圈上的小铃铛
+        A.bellInto(b, t, rnd(2900, 3300), 0.03 * vol, 0.35);
+        A.bellInto(b, t + 0.05, rnd(3300, 3700), 0.02 * vol, 0.3);
         break;
       case 'pop':
         tone(b, t, 700, 300, 0.08, 0.14 * vol);
