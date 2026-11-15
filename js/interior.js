@@ -281,6 +281,12 @@
     lg1.position.set(0.3, 2.96, 0);
     lg2.position.copy(lg1.position);
     scene.add(lg1, lg2);
+    // 吊灯：点一下开关
+    I.lamp = { shade, bulb, lg1, lg2, on: true, k: 1 };
+    G.Tap.add(G.Tap.proxy(shade, 0.34, 0, -0.08, 0), 6, () => {
+      I.lamp.on = !I.lamp.on;
+      G.Audio.sfx('tick');
+    }, { hint: new THREE.Vector3(0.3, 2.7, 0), hintDist: 4.5 });
 
     /* 火鸡面：货架 + 面山 + 两批“从天而降” */
     const pileN = 560, rainN = 120;
@@ -360,7 +366,46 @@
     }
     bowl.add(bowlMesh, soup, rim);
     bowl.position.set(T.x - 0.05, TY + 0.025, T.z + 0.35);
-    bowl.userData.kind = 'bowl';
+    G.Tap.add(bowl, 5, (h, x, y) => I.eat(x, y), { hint: new THREE.Vector3(bowl.position.x, bowl.position.y + 0.3, bowl.position.z), hintDist: 4.5 });
+
+    /* 八音盒：盒子上站着一只会转圈的小鸡 */
+    const mb = new THREE.Group();
+    const walnut = SH.room(0x7a4a2e, null), brass = SH.room(0xe0b85a, null, { emit: 0.15 });
+    const mbase = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.1), walnut);
+    mbase.position.y = 0.03;
+    const lid = new THREE.Group();
+    lid.position.set(0, 0.06, -0.05);
+    const lidM = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.012, 0.1), walnut);
+    lidM.position.set(0, 0.006, 0.05);
+    lid.add(lidM);
+    lid.rotation.x = -1.25;
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.09, 12), brass);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(0, 0.066, 0.005);
+    const crank = new THREE.Group();
+    crank.position.set(0.075, 0.035, 0);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.035, 0.008), brass);
+    arm.position.y = 0.0175;
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), SH.room(0xfff0dc, null));
+    knob.position.set(0.006, 0.035, 0);
+    crank.add(arm, knob);
+    const chick = new THREE.Group();
+    chick.position.set(-0.035, 0.066, 0.022);
+    const yel = SH.room(0xffd84a, null, { emit: 0.12 });
+    const cb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 12, 8), yel);
+    cb.position.y = 0.018;
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.0125, 12, 8), yel);
+    ch.position.set(0, 0.04, 0.004);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.005, 0.012, 6), SH.room(0xff8a3d, null));
+    beak.rotation.x = Math.PI / 2;
+    beak.position.set(0, 0.04, 0.019);
+    chick.add(cb, ch, beak);
+    mb.add(mbase, lid, drum, crank, chick);
+    mb.position.set(T.x - 0.27, TY + 0.025, T.z - 0.5);
+    mb.rotation.y = -Math.PI / 2 - 0.35;
+    scene.add(mb);
+    I.mbox = { g: mb, drum, crank, chick, play: 0, note: 0, flip: 0 };
+    G.Tap.add(G.Tap.proxy(mb, 0.13, 0, 0.05, 0), 5, () => I.playMusic(), { hint: new THREE.Vector3(mb.position.x, mb.position.y + 0.24, mb.position.z), hintDist: 4.5 });
     scene.add(bowl);
     I.bowl = bowl;
     I.steamOrigin = new THREE.Vector3(bowl.position.x, bowl.position.y + 0.09, bowl.position.z);
@@ -487,7 +532,49 @@
     return true;
   }
 
+  // 吃一口火鸡面：辣到喷火
+  const HOT = ['嘶——哈——好辣！', '辣得想喷火（已经喷了）', '再来一口……等等，水呢？', '鸡柳歪头看着你：喵？'];
+  let hotIdx = 0;
+  I.eat = function (x, y) {
+    const cam = G.Player.camera, f = new THREE.Vector3();
+    cam.getWorldDirection(f);
+    const p = cam.position.clone().addScaledVector(f, 0.55);
+    p.y -= 0.12;
+    G.Things.emit('flame', p, 12, { spread: 0.1, velRand: 0.5, vel: f.clone().multiplyScalar(1.5), stagger: 0.35 });
+    G.Audio.sfx('fire');
+    G.UI.spicy();
+    G.UI.pop(HOT[hotIdx++ % HOT.length], x, y);
+  };
+  I.playMusic = function () {
+    const m = I.mbox;
+    if (m.play > 0.5) return;
+    G.Audio.sfx('tick', 0.6);
+    m.play = G.Audio.music(I.bdayNow ? 'bday' : 'lull') || G.Audio.tuneLength(I.bdayNow ? 'bday' : 'lull');
+  };
+
   I.update = function (dt, time, bday, wantCake) {
+    I.bdayNow = bday > 0.5;
+    // 吊灯开关
+    const L = I.lamp;
+    L.k += ((L.on ? 1 : 0.08) - L.k) * Math.min(1, dt * 8);
+    G.RU.uLampColor.value.setRGB(1.0 * L.k, 0.74 * L.k, 0.44 * L.k);
+    L.bulb.material.color.setRGB(0.22 + 0.78 * L.k, 0.2 + 0.74 * L.k, 0.17 + 0.61 * L.k);
+    L.lg1.material.opacity = 0.75 * L.k;
+    L.lg2.material.opacity = 0.14 * L.k;
+    // 八音盒
+    const mbx = I.mbox;
+    if (mbx.play > 0) {
+      mbx.play -= dt;
+      mbx.crank.rotation.x += dt * 5;
+      mbx.drum.rotation.x += dt * 2;
+      mbx.chick.rotation.y += dt * 2.4;
+      mbx.note -= dt;
+      if (mbx.note <= 0 && mbx.play > 1) {
+        mbx.note = 0.5;
+        mbx.flip ^= 1;
+        G.Things.emit(mbx.flip ? 'note' : 'note2', new THREE.Vector3(mbx.g.position.x, mbx.g.position.y + 0.14, mbx.g.position.z), 1, { spread: 0.06, velRand: 0.12, vel: new THREE.Vector3(0, 0.16, 0) });
+      }
+    }
     let dirty = false;
     for (const p of I.pools) dirty = updatePool(p, dt) || dirty;
     if (dirty) I.packs.instanceMatrix.needsUpdate = true;

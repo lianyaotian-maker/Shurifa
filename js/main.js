@@ -24,6 +24,8 @@
     $('start').hidden = false;
     $('start').classList.remove('gone');
   });
+  G.Post.init(renderer);
+  G.renderer = renderer;
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0xffffff, U.uFogDensity.value);
   const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.05, 700);
@@ -49,6 +51,7 @@
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h);
+    if (G.Post) G.Post.resize();
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     U.uPx.value = (h * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
@@ -74,6 +77,11 @@
   G.Interior.build(scene);
   G.FX.build(scene);
   G.Party.build(scene);
+  status('正在叫醒鸡柳…');
+  await G.nextFrame();
+  G.Things.build(scene);
+  G.Cat.build(scene);
+  G.Life.build(scene);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -81,6 +89,7 @@
     const Q = QUAL[q];
     dpr = Math.min(Q.dpr, Math.max(1, window.devicePixelRatio || 1));
     G.Nature.setQuality(q);
+    G.Post.enabled = q !== 'low'; // “流畅”档关闭后期效果
     $('quality').textContent = '画质 · ' + Q.name;
     store.set('grass-house-q', q);
     resize();
@@ -235,6 +244,7 @@
       U.uBdayOrigin.value.set(G.Player.x, G.Player.z);
       G.Party.trigger(G.Player, camForward());
       celebrate();
+      G.Audio.sfx('magic');
     }
     if (B.on && !special) B.on = false;
     B.amt += ((B.on ? 1 : 0) - B.amt) * Math.min(1, dt * (B.on ? 0.9 : 1.4));
@@ -257,7 +267,6 @@
     '已加入购物车（并没有购物车）', '这包面在这里等你很久了', '小鸡说：我也不知道为什么这么辣'
   ];
   const SEASON_LINE = ['外面在下雪，屋里有火鸡面', '春天的第一口辣，敬草原', '夏天吃辣，越吃越热', '秋天就该吃点辣的'];
-  const BOWL_LINES = ['刚煮好的，小心烫', '吸溜——（可惜吃不到）', '这碗是给你留的'];
   let lastLine = '';
   function seasonIdx(d) {
     const m = SEA.dateOfDay(d).m;
@@ -283,27 +292,56 @@
     setTimeout(() => el.classList.add('out'), 2000);
     setTimeout(() => el.remove(), 2600);
   }
+  // 给其他模块用的界面小工具
+  G.UI = {
+    pop,
+    spicy() {
+      const el = $('spicy');
+      el.classList.remove('go');
+      void el.offsetWidth;
+      el.classList.add('go');
+    }
+  };
+  G.Player.onSeat = (seat) => {
+    const el = $('seat');
+    el.textContent = seat ? seat.label || '拨动摇杆起身' : '';
+    el.classList.toggle('on', !!seat);
+  };
   const ray = new THREE.Raycaster();
-  ray.far = 6.5;
+  ray.far = 14;
   const ndc = new THREE.Vector2();
   let bump = null;
+  // 火鸡面、蛋糕
+  G.Tap.add(G.Interior.packs, 6.5, (h, x, y) => {
+    if (h.instanceId === undefined) return;
+    pop(pickLine(), x, y);
+    G.Audio.sfx('crinkle');
+    const m = new THREE.Matrix4();
+    G.Interior.packs.getMatrixAt(h.instanceId, m);
+    bump = { id: h.instanceId, m, t: 0 };
+  });
+  G.Tap.add(G.Interior.cake, 5, () => {
+    G.Interior.blowOut = 4.5; // 吹灭蜡烛，过一会儿又会亮起来
+    G.Audio.sfx('air', 0.8);
+  }, { enabled: () => G.Interior.cake.visible });
+  // 墙和门会挡住点击（玻璃不挡）
+  for (const m of G.House.shell.children) if (m.name !== 'glass') G.Tap.add(m, 99, null, { block: true });
+  G.Tap.add(G.House.door, 99, null, { block: true });
   G.Player.onTap = function (x, y) {
+    G.Audio.resume();
     ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects(G.Interior.pickTargets(), true);
-    if (!hits.length) return;
-    const h = hits[0];
-    let o = h.object;
-    while (o && !o.userData.kind && o !== G.Interior.packs) o = o.parent;
-    if (h.object === G.Interior.packs && h.instanceId !== undefined) {
-      pop(pickLine(), x, y);
-      const m = new THREE.Matrix4();
-      G.Interior.packs.getMatrixAt(h.instanceId, m);
-      bump = { id: h.instanceId, m, t: 0 };
-    } else if (o && o.userData.kind === 'bowl') {
-      pop(BOWL_LINES[Math.floor(Math.random() * BOWL_LINES.length)], x, y);
-    } else if (o && o.userData.kind === 'cake' && G.Interior.cake.visible) {
-      G.Interior.blowOut = 4.5; // 吹灭蜡烛，过一会儿又会亮起来
+    const hits = ray.intersectObjects(G.Tap.list, true);
+    for (const h of hits) {
+      let o = h.object;
+      while (o && !o.userData.tap) o = o.parent;
+      if (!o) continue;
+      const e = o.userData.tap;
+      if (e.enabled && !e.enabled()) continue;
+      if (e.block || h.distance > e.dist) return;
+      e.quiet = clock + 22;
+      e.fn(h, x, y);
+      return;
     }
   };
   const bp = new THREE.Vector3(), bq = new THREE.Quaternion(), bs = new THREE.Vector3(), bm = new THREE.Matrix4();
@@ -327,6 +365,7 @@
   G.Player.update(0);
   G.Nature.update(camera);
   try { renderer.compile(scene, camera); } catch (e) { /* 首帧再编译 */ }
+  G.Post.selfTest(scene, camera);
 
   const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = navigator.standalone === true || matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches;
@@ -341,6 +380,7 @@
     $('start').classList.add('gone');
     setTimeout(() => { $('start').hidden = true; }, 900);
     G.Player.enabled = true;
+    G.Audio.init(); // 声音必须在点击之后才能启动
     $('hud').classList.add('on');
     $('hint').classList.add('on');
     const hideHint = () => $('hint').classList.remove('on');
@@ -353,6 +393,21 @@
   }
   $('go').addEventListener('click', begin);
   $('jump').addEventListener('pointerdown', (e) => { e.preventDefault(); G.Player.jump(); });
+  // 声音开关
+  const soundBtn = $('sound');
+  function setSound(on) {
+    G.Audio.setOn(on);
+    soundBtn.textContent = on ? '有声' : '静音';
+    soundBtn.classList.toggle('off', !on);
+    soundBtn.setAttribute('aria-pressed', String(on));
+    store.set('grass-house-sound', on ? '1' : '0');
+  }
+  setSound(store.get('grass-house-sound') !== '0');
+  soundBtn.addEventListener('click', () => {
+    G.Audio.init();
+    setSound(!G.Audio.on);
+    if (G.Audio.on) setTimeout(() => G.Audio.sfx('heart', 1.5), 80);
+  });
   $('help').addEventListener('click', () => {
     $('hint').classList.add('on');
     setTimeout(() => $('hint').classList.remove('on'), 5000);
@@ -373,6 +428,13 @@
     pause: /[?&]test=1/.test(location.search),
     step(n, dt) {
       for (let i = 0; i < n; i++) tick(dt || 1 / 30, i === n - 1);
+    },
+    // 只推进逻辑、不画画面
+    sim(n, dt, fn) {
+      for (let i = 0; i < n; i++) {
+        if (fn) fn(i);
+        tick(dt || 1 / 30, false);
+      }
     }
   };
   function tick(dt, draw) {
@@ -392,21 +454,33 @@
     if (!started) G.Player.yaw += Math.sin(clock * 0.25) * 0.00025; // 开场时镜头轻轻晃动
     G.Player.update(dt);
     G.Nature.update(camera);
-    G.House.update(dt, G.Player, U.uSnow.value);
+    G.House.update(dt, G.Player, U.uSnow.value, G.Cat);
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);
     updateBump(dt);
     G.FX.update(S, { mul: QUAL[quality].mul, bday: B.amt, hint: hint, lanternT: clock - B.lantern });
     G.Party.update(dt, clock, { amt: B.amt, pT: clock - B.start, fwT: clock - B.fw });
+    const ctx = { snow: U.uSnow.value, gH: S.gH, bday: B.amt, pT: clock - B.start };
+    G.Things.update(dt, clock, ctx);
+    G.Cat.update(dt, clock, ctx);
+    G.Life.update(S, B.amt);
+    // 鸡柳和你脚下的草会被压倒一小圈
+    const cs = G.Cat.state;
+    U.uPress.value[0].set(G.Cat.x, G.Cat.z, 0.62, cs === 'walk' ? 0.55 : 0.92);
+    U.uPress.value[1].set(G.Player.x, G.Player.z, 0.55, G.Player.seat ? 0 : 0.65);
 
     // 走进屋：面从天花板哗啦啦掉下来
     const inside = G.Player.inHouse(G.Player.x, G.Player.z) && G.Player.z < 2.2;
-    if (inside && !wasInside && outsideT > 5) G.Interior.rain();
+    if (inside && !wasInside && outsideT > 5) {
+      G.Interior.rain();
+      G.Audio.sfx('rain');
+      G.Cat.startle();
+    }
     if (inside) outsideT = 0;
     else outsideT += dt;
     wasInside = inside;
 
     if (!draw) return;
-    renderer.render(scene, camera);
+    G.Post.render(scene, camera);
     if (G.debug.pause) return;
 
     // 自动调节分辨率，保持流畅

@@ -130,6 +130,8 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 }
 #quality { right: calc(env(safe-area-inset-right, 0px) + 14px); }
 #help { left: calc(env(safe-area-inset-left, 0px) + 14px); width: 34px; padding: 0; font-weight: 600; }
+#sound { left: calc(env(safe-area-inset-left, 0px) + 54px); padding: 0 11px; font-size: 12px; }
+#sound.off { color: var(--muted); text-decoration: line-through; }
 
 #joy {
   position: fixed;
@@ -189,6 +191,34 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 #hint .h b { color: var(--text); font-weight: 600; margin-right: 6px; }
 #hint .left { left: calc(env(safe-area-inset-left, 0px) + 40px); }
 #hint .right { right: calc(env(safe-area-inset-right, 0px) + 40px); text-align: right; }
+
+/* ---------- 坐下时的提示、被辣到的红晕 ---------- */
+#seat {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  border-radius: 16px;
+  background: rgba(30, 20, 34, 0.42);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#seat.on { opacity: 1; }
+#spicy {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 80, 40, 0) 35%, rgba(255, 70, 30, 0.45) 80%, rgba(230, 40, 20, 0.7) 100%);
+}
+#spicy.go { animation: spicy 1.5s ease-out; }
+@keyframes spicy { 0% { opacity: 0; } 12% { opacity: 1; } 30% { opacity: 0.5; } 45% { opacity: 0.9; } 100% { opacity: 0; } }
 
 /* ---------- 点一点的小卡片 ---------- */
 .pop {

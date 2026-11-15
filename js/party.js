@@ -59,7 +59,7 @@ void main(){
   float age = tt - c * T;
   float startT = t0 + c * T;
   float h0 = hash12(vec2(c + 3.7, k * 5.1));
-  float on = step(0.0, tt) * uAmount * (startT < 26.0 ? 1.0 : step(0.68, h0));
+  float on = step(0.0, tt) * uAmount * (startT < 26.0 ? 1.0 : (mod(c + k, 3.0) < 0.5 ? 1.0 : 0.0));
   float h1 = hash12(vec2(c * 1.7 + 0.3, k * 2.9 + 1.0));
   float h2 = hash12(vec2(k * 4.1 + 2.0, c * 0.9 + 7.0));
   float h3 = hash12(vec2(c * 2.3 + k, 5.5));
@@ -352,6 +352,23 @@ void main(){
     const amt = o.amt, pT = o.pT;
     P.fw.material.uniforms.uAmount.value = amt;
     P.fw.material.uniforms.uFwT.value = o.fwT;
+    // 烟花炸开时配一声远远的“嘭”（时间表和着色器里的一致）
+    if (amt > 0.5) {
+      P.fwLast = P.fwLast || [];
+      for (let k = 0; k < 7; k++) {
+        const tt = o.fwT - (k * 0.68 + 0.5);
+        if (tt < 0) continue;
+        const c = Math.floor(tt / 4.6), age = tt - c * 4.6, id = c * 10 + k;
+        if (age >= 1.0 && age < 1.4 && P.fwLast[k] !== id) {
+          P.fwLast[k] = id;
+          const startT = k * 0.68 + 0.5 + c * 4.6;
+          if (startT < 26 || (c + k) % 3 === 0) {
+            const inside = G.Player.inHouse(G.Player.x, G.Player.z);
+            setTimeout(() => G.Audio.sfx('boom', inside ? 0.35 : 0.8), 260);
+          }
+        }
+      }
+    }
     const on = amt > 0.002;
     P.group.visible = on;
     P.wreath.visible = on;

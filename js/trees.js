@@ -119,16 +119,19 @@
   }
 
   // 改写 Lambert：树叶随季节缩放消失、朝上的面积雪
-  function treeMat(color, scale, snowK, key) {
+  function treeMat(color, scale, snowK, key, sway) {
     const mat = G.lambert({ color: new THREE.Color(color), vertexColors: true }, (sh) => {
       sh.uniforms.uFol = G.U.uFoliage;
       sh.uniforms.uSnow = G.U.uSnow;
+      sh.uniforms.uTime = G.U.uTime;
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec4 aBlob;\nuniform float uFol;\nvarying float vUpN;')
+        .replace('#include <common>', '#include <common>\nattribute vec4 aBlob;\nuniform float uFol;\nuniform float uTime;\nvarying float vUpN;')
         .replace(
           '#include <begin_vertex>',
           'vec3 transformed = vec3( position );\n' +
             (scale ? 'float fs = smoothstep( aBlob.w - 0.12, aBlob.w + 0.04, uFol );\ntransformed = aBlob.xyz + ( position - aBlob.xyz ) * fs;\n' : '') +
+            // 树冠随风轻轻晃
+            (sway ? 'transformed.x += sin( uTime * 1.2 + position.y * 0.9 + position.z * 0.35 ) * ' + sway.toFixed(3) + ';\ntransformed.z += cos( uTime * 1.0 + position.y * 0.8 + position.x * 0.3 ) * ' + (sway * 0.8).toFixed(3) + ';\n' : '') +
             'vUpN = normal.y;'
         );
       sh.fragmentShader = sh.fragmentShader
@@ -147,9 +150,9 @@
     const B = { bark: makeBucket(), oak: makeBucket(), blossom: makeBucket(), pine: makeBucket() };
     for (const t of G.Field.TREES) buildTree(t, B, rng);
     T.barkMat = treeMat(0x6e5241, false, 0.8, 'bark');
-    T.oakMat = treeMat(0x6aa040, true, 0.6, 'leaf');
-    T.blossomMat = treeMat(0xffb6cc, true, 0.6, 'leaf');
-    T.pineMat = treeMat(0x2c5236, false, 0.9, 'pine');
+    T.oakMat = treeMat(0x6aa040, true, 0.6, 'leaf', 0.05);
+    T.blossomMat = treeMat(0xffb6cc, true, 0.6, 'leaf', 0.05);
+    T.pineMat = treeMat(0x2c5236, false, 0.9, 'pine', 0.025);
     scene.add(toMesh(B.bark, T.barkMat));
     scene.add(toMesh(B.oak, T.oakMat));
     scene.add(toMesh(B.blossom, T.blossomMat));

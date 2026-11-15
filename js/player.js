@@ -113,8 +113,33 @@
   };
   P.jump = function () {
     if (!P.enabled) return;
+    if (P.seat) return P.stand();
     const g = P.groundAt(P.x, P.z) + P.eye;
     if (P.y <= g + 0.06) P.vy = 4.3;
+  };
+  // 坐下（秋千、长椅）与起身
+  const seatV = new THREE.Vector3();
+  P.sit = function (seat) {
+    if (P.seat) P.stand();
+    P.seat = seat;
+    P.vy = 0;
+    P.sitHold = 0;
+    P.sitT = 0;
+    if (seat.yaw !== undefined) {
+      P.yaw = seat.yaw;
+      P.pitch = 0.02;
+    }
+    if (P.onSeat) P.onSeat(seat);
+  };
+  P.stand = function () {
+    const s = P.seat;
+    if (!s) return;
+    P.seat = null;
+    P.x = s.exit.x;
+    P.z = s.exit.z;
+    P.y = P.groundAt(P.x, P.z) + P.eye;
+    if (s.onLeave) s.onLeave();
+    if (P.onSeat) P.onSeat(null);
   };
 
   function collide() {
@@ -166,6 +191,24 @@
     if (len > 1) {
       ix /= len;
       iy /= len;
+    }
+    if (P.seat) {
+      // 坐着的时候：可以环顾，拨动摇杆就起身
+      P.sitT += dt;
+      if (len > 0.55 && P.sitT > 0.6) {
+        P.sitHold += dt;
+        if (P.sitHold > 0.2) P.stand();
+      } else P.sitHold = 0;
+    }
+    if (P.seat) {
+      P.seat.pos(seatV);
+      const k = P.sitT < 0.5 ? Math.min(1, dt * 9) : 1;
+      P.x += (seatV.x - P.x) * k;
+      P.y += (seatV.y - P.y) * k;
+      P.z += (seatV.z - P.z) * k;
+      P.camera.position.set(P.x, P.y, P.z);
+      P.camera.rotation.set(P.pitch, P.yaw, 0);
+      return;
     }
     const inside = P.inHouse(P.x, P.z);
     const speed = inside ? 2.3 : 3.8;

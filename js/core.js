@@ -66,6 +66,7 @@
     uField: { value: null },
     uFieldHalf: { value: 112 },
     uPath: { value: [] },
+    uPress: { value: [new THREE.Vector4(0, 0, 1, 0), new THREE.Vector4(0, 0, 1, 0)] },
     uPx: { value: 600 }
   };
   // 室内灯光（暖色）
@@ -100,6 +101,7 @@
     'varying vec3 vFogWorld;',
     'uniform vec3 uSunDir;',
     'uniform vec3 uSunGlow;',
+    'uniform vec3 uZenith;',
     '#ifdef FOG_EXP2',
     'uniform float fogDensity;',
     '#else',
@@ -116,7 +118,9 @@
     'float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );',
     '#endif',
     'vec3 fogDirV = normalize( vFogWorld - cameraPosition );',
-    'vec3 fogCol = fogColor + uSunGlow * ( pow( max( dot( fogDirV, uSunDir ), 0.0 ), 8.0 ) * 0.55 );',
+    'float fogSd = dot( fogDirV, uSunDir );',
+    'vec3 fogBase = mix( fogColor, mix( fogColor, uZenith, 0.5 ), smoothstep( 0.35, -0.75, fogSd ) );',
+    'vec3 fogCol = fogBase + uSunGlow * ( pow( max( fogSd, 0.0 ), 8.0 ) * 0.55 );',
     'gl_FragColor.rgb = mix( gl_FragColor.rgb, fogCol, fogFactor );',
     '#endif'
   ].join('\n');
@@ -126,6 +130,7 @@
     mat.onBeforeCompile = function (sh) {
       sh.uniforms.uSunDir = G.U.uSunDir;
       sh.uniforms.uSunGlow = G.U.uSunGlow;
+      sh.uniforms.uZenith = G.U.uZenith;
       if (extra) extra(sh);
     };
     const k = 'grass-' + (key || 'base');

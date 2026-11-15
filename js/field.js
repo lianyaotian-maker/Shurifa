@@ -10,6 +10,8 @@
   const HOUSE = { x0: -3.6, x1: 3.6, z0: -2.8, z1: 2.8 };
   const PORCH = { x0: -1.45, x1: 1.45, z0: 2.8, z1: 4.4 };
   const CHIMNEY = { x0: 3.6, x1: 4.32, z0: -0.4, z1: 0.4 };
+  // 被踩秃的地方：秋千下面、山顶长椅前、雪人和信箱脚下 [x, z, 半径, 程度]
+  const BARE = [[7.0, -2.7, 1.9, 1], [-31.4, 10.3, 1.5, 0.9], [-3.7, 8.4, 0.9, 0.8], [3.55, 27.4, 0.6, 0.8], [3.98, 0.85, 0.9, 1]];
   const TREES = [
     { x: 8.4, z: -4.6, type: 'oak', s: 1.12 },
     { x: -6.8, z: 9.6, type: 'blossom', s: 0.92 },
@@ -125,7 +127,18 @@
     }
   }
 
-  let grid = null;
+  let grid = null, shadowS = null, shadowT = null;
+  function sampleGrid(arr, x, z) {
+    const fx = G.clamp((x + HALF) / CELL - 0.5, 0, N - 1.001), fz = G.clamp((z + HALF) / CELL - 0.5, 0, N - 1.001);
+    const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
+    const a = arr[j * N + i], b = arr[j * N + i + 1], c = arr[(j + 1) * N + i], d = arr[(j + 1) * N + i + 1];
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  // 某个位置有多“在阴影里”（0~1），给会走动的东西（鸡柳）用
+  function shadowAt(x, z) {
+    if (!shadowS) return 0;
+    return Math.min(1, Math.max(sampleGrid(shadowS, x, z), sampleGrid(shadowT, x, z) * G.U.uFoliage.value));
+  }
   function hAt(x, z) {
     const fx = G.clamp((x + HALF) / CELL - 0.5, 0, N - 1.001), fz = G.clamp((z + HALF) / CELL - 0.5, 0, N - 1.001);
     const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
@@ -183,12 +196,15 @@
         m = Math.max(m, 1 - G.smooth(0.05, 0.45, rectDist(x, z, HOUSE)));
         m = Math.max(m, 1 - G.smooth(0.0, 0.3, rectDist(x, z, PORCH)));
         m = Math.max(m, 1 - G.smooth(0.0, 0.25, rectDist(x, z, CHIMNEY)));
+        for (const b of BARE) m = Math.max(m, (1 - G.smooth(b[2] * 0.55, b[2], Math.hypot(x - b[0], z - b[1]))) * b[3]);
         for (const t of TREES) m = Math.max(m, 1 - G.smooth(0.35 * t.s, 0.8 * t.s, Math.hypot(x - t.x, z - t.z)));
         mask[idx] = m;
       }
     }
     blur(shS);
     blur(shT);
+    shadowS = shS;
+    shadowT = shT;
 
     const data = new Uint16Array(N * N * 4);
     const H = THREE.DataUtils.toHalfFloat;
@@ -210,5 +226,5 @@
     return tex;
   }
 
-  G.Field = { HALF, N, HOUSE, PORCH, TREES, SPAWN, PATH, height, hAt, pathDist, rectDist, build };
+  G.Field = { HALF, N, HOUSE, PORCH, TREES, SPAWN, PATH, height, hAt, shadowAt, pathDist, rectDist, build };
 })();

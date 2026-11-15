@@ -111,7 +111,7 @@
     [1.0, 0.62, 0.74], [0.98, 0.96, 0.92], [1.0, 0.86, 0.36],
     [0.8, 0.68, 0.96], [1.0, 0.56, 0.46], [0.64, 0.78, 0.99], [1.0, 0.74, 0.86]
   ];
-  function flowerGeometry() {
+  function flowerGeometry(R) {
     const pos = [], kind = [], idx = [];
     // 花茎
     pos.push(-0.5, 0, 0, 0.5, 0, 0, -0.5, 1, 0, 0.5, 1, 0);
@@ -121,7 +121,6 @@
     const c = 4;
     pos.push(0, 0.05, 0);
     kind.push(1);
-    const R = 25;
     for (let i = 0; i < R; i++) {
       const a = (i / R) * Math.PI * 2;
       const rr = 0.32 + 0.68 * Math.pow(Math.abs(Math.cos(a * 2.5)), 0.55);
@@ -136,13 +135,13 @@
     return g;
   }
   function flowerPatch(scene, max, size, far, seed) {
-    const g = flowerGeometry();
+    const g = flowerGeometry(far ? 10 : 25); // 远处的花很小，用简单一些的花形
     const r = G.rng(seed);
     const off = new Float32Array(max * 2), rnd = new Float32Array(max * 4), col = new Float32Array(max * 3);
     for (let i = 0; i < max; i++) {
       off[i * 2] = r() * size;
       off[i * 2 + 1] = r() * size;
-      rnd[i * 4] = r();
+      rnd[i * 4] = (i + 0.5) / max; // 按顺序排好：稀疏的季节只需要画前面一部分
       rnd[i * 4 + 1] = r();
       rnd[i * 4 + 2] = r();
       rnd[i * 4 + 3] = r();
@@ -160,7 +159,8 @@
       uCenter: { value: new THREE.Vector2() },
       uSize: { value: size },
       uFadeR: { value: far ? new THREE.Vector4(14, 19, size * 0.38, size * 0.49) : new THREE.Vector4(-2, -1, size * 0.36, size * 0.5) },
-      uScale: { value: far ? 1.7 : 1.0 }
+      uScale: { value: far ? 1.7 : 1.0 },
+      uRndScale: { value: 1 }
     }, { side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(g, m);
     mesh.frustumCulled = false;
@@ -189,11 +189,19 @@
     const P = N.PRESETS[q] || N.PRESETS.mid;
     N.grassNear.geometry.instanceCount = P.grassNear;
     N.grassFar.geometry.instanceCount = P.grassFar;
-    N.flowerNear.geometry.instanceCount = P.flowerNear;
-    N.flowerFar.geometry.instanceCount = P.flowerFar;
+    N.flowerMax = [P.flowerNear, P.flowerFar];
+    const HI = N.PRESETS.high;
+    N.flowerNear.material.uniforms.uRndScale.value = HI.flowerNear / P.flowerNear;
+    N.flowerFar.material.uniforms.uRndScale.value = HI.flowerFar / P.flowerFar;
   };
   N.update = function (cam) {
     for (const m of [N.grassNear, N.grassFar, N.flowerNear, N.flowerFar]) m.material.uniforms.uCenter.value.set(cam.position.x, cam.position.z);
+    // 花少的季节只画看得见的那一部分
+    const U = G.U;
+    const frac = U.uBdayAmt.value > 0 ? 1 : G.clamp(U.uFlowerAmt.value * 1.82 + 0.02, 0, 1) * (U.uSnow.value > 0.98 ? 0 : 1);
+    N.flowerNear.geometry.instanceCount = Math.ceil(N.flowerMax[0] * frac);
+    N.flowerFar.geometry.instanceCount = Math.ceil(N.flowerMax[1] * frac);
+    N.flowerNear.visible = N.flowerFar.visible = frac > 0;
   };
 
   G.Nature = N;

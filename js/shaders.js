@@ -11,6 +11,7 @@ uniform vec3 uAmbTop;
 uniform vec3 uAmbBottom;
 uniform vec3 uFogColor;
 uniform vec3 uSunGlow;
+uniform vec3 uZenith;
 uniform float uFogDensity;
 uniform vec3 uRim;
 uniform vec3 uShadowTint;
@@ -29,12 +30,27 @@ float vnoise(vec2 p){
 }
 vec4 fieldAt(vec2 xz){ return texture2D(uField, (xz + uFieldHalf) / (2.0 * uFieldHalf)); }
 float fogF(float d){ float x = uFogDensity * d; return 1.0 - exp(-x * x); }
-vec3 fogC(vec3 dir){ return uFogColor + uSunGlow * (pow(max(dot(dir, uSunDir), 0.0), 8.0) * 0.55); }
+// 地平线的颜色：朝着夕阳是暖的，背着夕阳偏冷偏紫
+vec3 horizonC(float sd){ return mix(uFogColor, mix(uFogColor, uZenith, 0.5), smoothstep(0.35, -0.75, sd)); }
+vec3 fogC(vec3 dir){ float sd = dot(dir, uSunDir); return horizonC(sd) + uSunGlow * (pow(max(sd, 0.0), 8.0) * 0.55); }
 float windWave(vec2 p){
   float a = dot(p, uWindDir); float b = dot(p, vec2(-uWindDir.y, uWindDir.x));
   return sin(a * 0.21 - uTime * 1.2 + sin(b * 0.06) * 2.0) * 0.62 + sin(a * 0.57 - uTime * 2.0 + b * 0.13) * 0.38;
 }
 float shadowAt(vec4 f){ return max(f.b, f.a * uFoliage); }
+// 被踩倒的草：鸡柳和你脚下各一小圈（xy 位置、z 半径、w 程度）
+uniform vec4 uPress[2];
+vec3 pressAt(vec2 p){
+  vec3 r = vec3(0.0);
+  for (int i = 0; i < 2; i++) {
+    vec2 dv = p - uPress[i].xy;
+    float dl = length(dv);
+    float k = (1.0 - smoothstep(uPress[i].z * 0.35, uPress[i].z, dl)) * uPress[i].w;
+    r.z = max(r.z, k);
+    r.xy += dv / max(dl, 0.05) * k;
+  }
+  return r;
+}
 `;
 
   /* ---------- 草 ---------- */
@@ -63,12 +79,14 @@ void main(){
   float pn = vnoise(wp * 0.09);
   float h = uBladeH * uGrassH * aParams.x * fade * (1.0 - f.g) * (0.7 + 0.6 * pn) * (1.0 - 0.45 * uSnow);
   h *= smoothstep(uSnow * 0.7 - 0.05, uSnow * 0.7, rnd); // 积雪越厚，露出来的草越少
+  vec3 pr = pressAt(wp);
+  h *= 1.0 - pr.z * 0.78;
   float hf = position.y;
   float yaw = aParams.z;
   vec3 side = vec3(cos(yaw), 0.0, sin(yaw));
   float w = windWave(wp);
   float bend = 0.26 + 0.22 * w + 0.06 * sin(uTime * 3.1 + rnd * 40.0);
-  vec2 lean = uWindDir * bend + vec2(cos(rnd * 31.0), sin(rnd * 31.0)) * 0.16;
+  vec2 lean = uWindDir * bend + vec2(cos(rnd * 31.0), sin(rnd * 31.0)) * 0.16 + pr.xy * 0.9;
   vec3 pos = vec3(wp.x, f.r, wp.y);
   pos += side * (position.x * uBladeW * aParams.y);
   pos.y += hf * h * (1.0 - 0.22 * dot(lean, lean));
@@ -146,6 +164,7 @@ void main(){
     float pd = pathDist(xz) + (n2 - 0.5) * 0.35;
     pm = 1.0 - smoothstep(0.55, 0.9, pd);
   }
+  pm = max(pm, smoothstep(0.4, 0.92, f.g) * 0.85); // 被踩秃的地方露出泥土
   vec3 dirt = vec3(0.72, 0.62, 0.48) * (0.88 + 0.18 * n3);
   vec3 base = mix(g, dirt, pm);
   // 生日那天：远处的草地也星星点点开满花
@@ -182,7 +201,6 @@ void main(){
 }
 `;
   S.SKY_FS = S.COMMON + /* glsl */ `
-uniform vec3 uZenith;
 uniform vec3 uCloudLit;
 uniform vec3 uCloudShade;
 varying vec3 vDir;
@@ -196,8 +214,9 @@ void main(){
   float h = d.y;
   float sd = max(dot(d, uSunDir), 0.0);
   float t = pow(clamp(h, 0.0, 1.0), 0.42);
-  vec3 col = mix(uFogColor, uZenith, t);
-  col = mix(col, uFogColor * 0.96, smoothstep(0.0, -0.08, h));
+  vec3 hz = horizonC(dot(d, uSunDir));
+  vec3 col = mix(hz, uZenith, t);
+  col = mix(col, hz * 0.96, smoothstep(0.0, -0.08, h));
   col += uSunGlow * (pow(sd, 8.0) * 0.55 + pow(sd, 48.0) * 0.45);
   float dens = 0.0;
   if (h > 0.0) {
@@ -209,6 +228,24 @@ void main(){
     col = mix(col, cc, dens * 0.88);
   }
   col += vec3(1.0, 0.95, 0.82) * smoothstep(0.99935, 0.99965, dot(d, uSunDir)) * 0.9 * (1.0 - dens * 0.7);
+  // 太阳对面的天上：一弯月牙，几颗早出的星星
+  vec3 md = normalize(vec3(-uSunDir.x * 0.9, 0.62, -uSunDir.z * 0.9 + 0.25));
+  float mdot = dot(d, md);
+  float disc = smoothstep(0.99962, 0.99974, mdot);
+  float cut = smoothstep(0.99955, 0.99968, dot(d, normalize(md + vec3(0.011, 0.007, 0.004))));
+  col += vec3(1.0, 0.97, 0.9) * clamp(disc - cut, 0.0, 1.0) * 0.85 * (1.0 - dens);
+  col += vec3(0.85, 0.88, 1.0) * pow(max(mdot, 0.0), 1400.0) * 0.1;
+  float sv = smoothstep(0.22, 0.7, h) * (1.0 - smoothstep(-0.35, 0.45, dot(d, uSunDir))) * (1.0 - dens);
+  if (sv > 0.01) {
+    vec3 sp = d * 90.0;
+    vec3 cell = floor(sp);
+    vec3 p3 = fract(cell * 0.1031);
+    p3 += dot(p3, p3.zyx + 31.32);
+    float hs = fract((p3.x + p3.y) * p3.z);
+    float dd = length(fract(sp) - 0.5);
+    float tw = 0.65 + 0.35 * sin(uTime * (1.0 + hs * 3.0) + hs * 60.0);
+    col += vec3(1.0, 0.97, 0.92) * step(0.985, hs) * smoothstep(0.2, 0.0, dd) * tw * sv * 0.6;
+  }
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -250,6 +287,7 @@ uniform vec2 uCenter;
 uniform float uSize;
 uniform vec4 uFadeR;
 uniform float uScale;
+uniform float uRndScale;
 uniform float uFlowerAmt;
 uniform float uBdayAmt;
 uniform float uBdayRadius;
@@ -268,10 +306,10 @@ void main(){
   float fade = (1.0 - smoothstep(uFadeR.z, uFadeR.w, dist)) * smoothstep(uFadeR.x, uFadeR.y, dist);
   float clump = vnoise(wp * 0.11 + 7.3);
   float thr = uFlowerAmt * (0.12 + 1.7 * clump * clump);
-  float vis = 1.0 - smoothstep(thr - 0.05, thr, aRnd.x);
+  float vis = 1.0 - smoothstep(thr - 0.05, thr, aRnd.x * uRndScale);
   float bv = clamp((uBdayRadius - length(wp - uBdayOrigin)) / 6.0, 0.0, 1.0) * uBdayAmt;
   float pop = bv * (1.0 + 0.3 * sin(bv * 3.14159));
-  float s = max(vis, pop) * fade * (1.0 - f.g) * (1.0 - uSnow);
+  float s = max(vis, pop) * fade * (1.0 - f.g) * (1.0 - uSnow) * (1.0 - pressAt(wp).z);
   float stemH = (0.38 + 0.4 * aRnd.y) * (0.6 + 0.45 * uGrassH) * uScale * (1.0 + 0.2 * uBdayAmt);
   float grow = min(s * 1.6, 1.0);
   float yaw = aRnd.w * 6.2832;

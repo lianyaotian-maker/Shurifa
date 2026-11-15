@@ -126,18 +126,29 @@
   /* ---------- 墙体（带门窗洞） ---------- */
   function wall(mg, len, cx, cz, rotY, out, openings) {
     const parent = new THREE.Matrix4().makeRotationY(rotY).setPosition(cx, 0, cz);
+    // 墙块的侧面（沿墙方向）一律不生成：它们要么被相邻墙块挡住，要么会在墙面上留下一条细白线。
+    // 门窗洞的侧壁单独用薄片补上。
+    const ax = Math.cos(rotY), az = -Math.sin(rotY); // 沿墙方向
     const keyFn = (n) => {
+      if (Math.abs(n.x * ax + n.z * az) > 0.7) return null;
       const d = n.x * out[0] + n.z * out[1];
       return d > 0.7 ? 'ext' : d < -0.7 ? 'int' : 'trim';
     };
     const opts = { parent, uvScale: 1 / 1.6 };
     const piece = (x0, x1, y0, y1) => mg.box(x1 - x0, y1 - y0, T, (x0 + x1) / 2, FY + (y0 + y1) / 2, 0, keyFn, opts);
+    const reveal = (px, y0, y1, dir) => {
+      const m = new THREE.Matrix4().makeRotationY(dir * Math.PI / 2).setPosition(px, FY + (y0 + y1) / 2, 0).premultiply(parent);
+      mg.add(new THREE.PlaneGeometry(T, y1 - y0), m, 'trim', { uv: 'keep' });
+    };
     const ops = openings.slice().sort((a, b) => a.x0 - b.x0);
     let x = -len / 2;
     for (const o of ops) {
       if (o.x0 > x) piece(x, o.x0, 0, WH);
-      if (o.y0 > 0) piece(o.x0, o.x1, 0, o.y0);
-      if (o.y1 < WH) piece(o.x0, o.x1, o.y1, WH);
+      // 上下两块各向两边多伸出 4 毫米，盖住拼接处的缝
+      if (o.y0 > 0) piece(o.x0 - 0.004, o.x1 + 0.004, 0, o.y0);
+      if (o.y1 < WH) piece(o.x0 - 0.004, o.x1 + 0.004, o.y1, WH);
+      reveal(o.x0, o.y0, o.y1, 1);
+      reveal(o.x1, o.y0, o.y1, -1);
       x = o.x1;
     }
     if (x < len / 2) piece(x, len / 2, 0, WH);
@@ -259,6 +270,7 @@
     const shell = mg.build(mats);
     for (const m of shell.children) if (m.name === 'glass') m.renderOrder = 5;
     scene.add(shell);
+    H.shell = shell;
 
     // 门：靠近时自动打开
     H.door = new THREE.Group();
@@ -305,10 +317,11 @@
     R.push({ x0: 3.6, x1: 4.32, z0: -0.4, z1: 0.4 });
   };
 
-  H.update = function (dt, player, snow) {
-    // 门
+  H.update = function (dt, player, snow, cat) {
+    // 门：人或猫走近都会打开
     const dx = player.x, dz = player.z - 2.8;
-    const near = dx * dx + dz * dz < 3.2 * 3.2;
+    let near = dx * dx + dz * dz < 3.2 * 3.2;
+    if (cat && cat.x * cat.x + (cat.z - 2.8) * (cat.z - 2.8) < 1.5 * 1.5) near = true;
     const target = near ? 1.6 : 0;
     H.doorAngle += (target - H.doorAngle) * Math.min(1, dt * 3.2);
     H.door.rotation.y = H.doorAngle;
