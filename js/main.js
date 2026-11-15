@@ -226,16 +226,12 @@
   ];
   const SEASON_LINE = ['外面在下雪，屋里有火鸡面', '春天的第一口辣，敬草原', '夏天吃辣，越吃越热', '秋天就该吃点辣的'];
   const BOWL_LINES = ['刚煮好的，小心烫', '吸溜——（可惜吃不到）', '这碗是给你留的'];
-  let lastLine = '', sweetShown = false;
+  let lastLine = '';
   function seasonIdx(d) {
     const m = SEA.dateOfDay(d).m;
     return m === 12 || m <= 2 ? 0 : m <= 5 ? 1 : m <= 8 ? 2 : 3;
   }
   function pickLine() {
-    if (B.on && !sweetShown) {
-      sweetShown = true;
-      return '今天的火鸡面……好像有点甜？';
-    }
     let s;
     let guard = 0;
     do {
