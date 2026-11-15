@@ -547,7 +547,15 @@
   };
   I.playMusic = function () {
     const m = I.mbox;
-    if (m.play > 0.5) return;
+    if (m.play > 0.5) {
+      // 你自己的音频可能很长：再点一下就停
+      if (G.Audio.hasOwnMusic()) {
+        G.Audio.stopMusic();
+        m.play = 0;
+        G.Audio.sfx('tick', 0.6);
+      }
+      return;
+    }
     G.Audio.sfx('tick', 0.6);
     m.play = G.Audio.music(I.bdayNow ? 'bday' : 'lull') || G.Audio.tuneLength(I.bdayNow ? 'bday' : 'lull');
   };
@@ -565,6 +573,8 @@
     const mbx = I.mbox;
     if (mbx.play > 0) {
       mbx.play -= dt;
+      const P = G.Player;
+      G.Audio.musicPlace(Math.hypot(P.x - mbx.g.position.x, P.z - mbx.g.position.z), !P.inHouse(P.x, P.z));
       mbx.crank.rotation.x += dt * 5;
       mbx.drum.rotation.x += dt * 2;
       mbx.chick.rotation.y += dt * 2.4;

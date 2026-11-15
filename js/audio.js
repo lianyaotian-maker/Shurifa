@@ -407,6 +407,7 @@
       for (const k in man.steps) S.steps[k] = { buf: await loadBuf(man.steps[k].file), hits: man.steps[k].hits };
       S.amb = {};
       for (const k in man.amb || {}) S.amb[k] = { buf: await loadBuf(man.amb[k].file), loop: man.amb[k].loop };
+      if (man.music) S.music = { buf: await loadBuf(man.music.file) };
       A.samples = S;
     } catch (e) {
       A.samples = null;
@@ -459,10 +460,11 @@
       const groups = MEOW_GROUP[kind] || ['mid'];
       for (const gname of groups) {
         const seg = pick(M.segs[gname], gname);
-        if (seg) return playSeg(M.buf, seg, 0.95 * (vol === undefined ? 1 : vol), rnd(0.96, 1.05), 0.18);
+        if (seg) return playSeg(M.buf, seg, 0.95 * (vol === undefined ? 1 : vol), rnd(0.98, 1.03), 0.18);
       }
     }
-    return A.meowInto(A.bus, now(), kind, { pitch: rnd(0.94, 1.07), stretch: rnd(0.92, 1.1), vol: vol });
+    // 录音还没加载好时不出声，免得出现另一种声音
+    return 0;
   };
   /* ---------- 环境声：风、草原、鸟叫、虫鸣（有录音用录音，没有就合成风声和虫鸣） ---------- */
   const amb = { layers: {} };
@@ -669,8 +671,31 @@
       t += rnd(0.06, 0.22);
     }
   };
+  // 八音盒：有你上传的音频就放它（声音随距离变小，在屋外会变闷），没有就放内置的小曲
+  let custom = null;
   A.music = function (name) {
     if (!ready()) return 0;
+    const own = A.samples && A.samples.music;
+    if (own) {
+      A.stopMusic();
+      const ctx = A.ctx, src = ctx.createBufferSource(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+      src.buffer = own.buf;
+      lp.type = 'lowpass';
+      lp.frequency.value = 18000;
+      g.gain.value = 0.8;
+      src.connect(lp);
+      lp.connect(g);
+      g.connect(A.bus.out);
+      const w = ctx.createGain();
+      w.gain.value = 0.12;
+      g.connect(w);
+      w.connect(A.bus.wet);
+      src.start(now());
+      custom = { src, g, lp };
+      src.onended = () => { if (custom && custom.src === src) custom = null; };
+      tuneStop = ctx.currentTime + own.buf.duration;
+      return own.buf.duration;
+    }
     const T = TUNES[name] || TUNES.lull, t0 = now() + 0.05;
     let t = t0;
     for (const n of T.notes) {
@@ -686,6 +711,22 @@
     return t - t0 + 1.5;
   };
   A.musicPlaying = () => !!A.ctx && A.ctx.currentTime < tuneStop;
+  A.hasOwnMusic = () => !!(A.samples && A.samples.music);
+  A.stopMusic = function () {
+    if (!custom) return;
+    const c = custom, t = A.ctx.currentTime;
+    custom = null;
+    tuneStop = 0;
+    c.g.gain.setTargetAtTime(0, t, 0.15);
+    c.src.stop(t + 0.8);
+  };
+  // 每帧由屋里调用：离八音盒越远越小声，出了屋就变闷
+  A.musicPlace = function (dist, outside) {
+    if (!custom) return;
+    const t = A.ctx.currentTime;
+    custom.g.gain.setTargetAtTime(0.85 * Math.max(0.12, Math.min(1, 1.6 / Math.max(dist, 0.8))), t, 0.2);
+    custom.lp.frequency.setTargetAtTime(outside ? 900 : 18000, t, 0.3);
+  };
   A.sfx = function (name, vol) {
     if (!ready()) return;
     const b = A.bus, t = now();
