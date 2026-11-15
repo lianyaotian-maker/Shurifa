@@ -1,0 +1,11 @@
+{
+  "name": "草原小屋",
+  "short_name": "草原小屋",
+  "description": "黄昏的草原上，有一间亮着灯的小木屋。",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#2a2333",
+  "theme_color": "#3b3157",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="草原小屋">
+<meta name="theme-color" content="#3b3157">
+<meta name="description" content="黄昏的草原上，有一间亮着灯的小木屋。">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<title>草原小屋</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="view"></div>
+
+<div id="hud">
+  <div id="datebar">
+    <button id="prev" class="step" aria-label="前一天">‹</button>
+    <div class="mid">
+      <div id="dateLabel" aria-live="polite"></div>
+      <div id="slider" role="slider" tabindex="0" aria-label="日期" aria-valuemin="0" aria-valuemax="364">
+        <div class="track"></div>
+        <div id="thumb"></div>
+      </div>
+      <div class="months" aria-hidden="true"><span style="left:0%">1月</span><span style="left:24.7%">4月</span><span style="left:49.7%">7月</span><span style="left:75%">10月</span></div>
+    </div>
+    <button id="next" class="step" aria-label="后一天">›</button>
+  </div>
+  <button id="quality" class="chip">画质 · 均衡</button>
+  <button id="help" class="chip" aria-label="操作说明">?</button>
+  <div id="joy" aria-hidden="true"><div id="knob"></div></div>
+  <button id="jump" aria-label="跳">跳</button>
+</div>
+
+<div id="hint" aria-hidden="true">
+  <div class="h left"><b>左边按住拖动</b>走路</div>
+  <div class="h right"><b>右边滑动</b>环顾四周<br><b>点一点</b>看看会发生什么</div>
+</div>
+<div id="pops" aria-live="polite"></div>
+
+<div id="start">
+  <div class="card">
+    <h1>草原小屋</h1>
+    <p class="sub">黄昏的草原上，有一间亮着灯的小木屋。</p>
+    <p id="status">正在准备…</p>
+    <button id="go" hidden>走进草原</button>
+    <p class="tips">左手走路 · 右手环顾 · 拨动上方的日期，看看草原的四季</p>
+    <p id="a2hs" hidden>想全屏玩：在 Safari 点「分享」→「添加到主屏幕」</p>
+  </div>
+</div>
+
+<div id="rotate" hidden><div class="phone"></div><p>请把手机横过来</p></div>
+<noscript><p style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;margin:0">需要开启 JavaScript 才能进入草原。</p></noscript>
+
+<script src="js/three.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/season.js"></script>
+<script src="js/field.js"></script>
+<script src="js/shaders.js"></script>
+<script src="js/nature.js"></script>
+<script src="js/trees.js"></script>
+<script src="js/house.js"></script>
+<script src="js/interior.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/player.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
