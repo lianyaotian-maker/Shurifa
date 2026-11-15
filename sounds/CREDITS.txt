@@ -23,7 +23,16 @@ Footsteps
 - "Walking on gravel (Gravity Sound).mp3" by Gravity Sound — CC BY 4.0
   https://commons.wikimedia.org/wiki/File:Walking_on_gravel_(Gravity_Sound).mp3
 
-CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+Ambience
+- "Wind in Swedish pine forest at 25 mps.ogg" by W.carter — CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Wind_in_Swedish_pine_forest_at_25_mps.ogg
+- "Audio Hörbild Grillenzirpen - nachts um 3 im Föhrenwald Mödling.ogg" by DrTrumpet — CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Audio_Hörbild_Grillenzirpen_-_nachts_um_3_im_Föhrenwald_Mödling.ogg
+  The trimmed loops sounds/amb_wind.mp3 and sounds/amb_crickets.mp3 are
+  adaptations of these recordings and are shared under the same license.
 
-Everything else (wind, crickets, chimes, music box, other effects) is
-synthesized in the browser.
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+
+Everything else (chimes, music box, other small effects) is synthesized in
+the browser.

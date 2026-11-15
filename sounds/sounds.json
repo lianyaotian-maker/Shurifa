@@ -221,5 +221,21 @@
     ]
    ]
   }
+ },
+ "amb": {
+  "wind": {
+   "file": "amb_wind.mp3",
+   "loop": [
+    0.05,
+    28.45
+   ]
+  },
+  "crickets": {
+   "file": "amb_crickets.mp3",
+   "loop": [
+    0.05,
+    28.45
+   ]
+  }
  }
 }

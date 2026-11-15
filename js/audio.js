@@ -490,6 +490,13 @@
       src.buffer = real.buf;
       src.loopStart = real.loop[0];
       src.loopEnd = real.loop[1];
+      if (name === 'wind') {
+        // 强风录音偏刺耳，滤掉高频，变成柔和的风声
+        filt = ctx.createBiquadFilter();
+        filt.type = 'lowpass';
+        filt.frequency.value = 2400;
+        filt.Q.value = 0.5;
+      }
     } else if (name === 'wind') {
       src.buffer = A.bus.noise;
       filt = ctx.createBiquadFilter();
@@ -533,7 +540,7 @@
       if (!L && want[name] > 0.005) L = amb.layers[name] = startLayer(name, R[name]);
       if (!L) continue;
       L.g.gain.setTargetAtTime(want[name] * (L.real ? 1 : name === 'wind' ? 1.6 : 0.7), t, 0.8);
-      if (L.filt) L.filt.frequency.setTargetAtTime(300 + 380 * gust, t, 0.8);
+      if (L.filt && !L.real) L.filt.frequency.setTargetAtTime(300 + 380 * gust, t, 0.8);
     }
   };
 
