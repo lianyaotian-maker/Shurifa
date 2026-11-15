@@ -1,0 +1,29 @@
+草原小屋 · 声音素材致谢 / Sound credits
+
+All recordings are from Wikimedia Commons and were trimmed, filtered and
+normalized for this page.
+
+Cat (鸡柳)
+- "Meow of a Siamese cat - freemaster2.wav" by freemaster2 — CC0
+  https://commons.wikimedia.org/wiki/File:Meow_of_a_Siamese_cat_-_freemaster2.wav
+- "MeowUSA.wav" by SalomeCzapiewski — CC0
+  https://commons.wikimedia.org/wiki/File:MeowUSA.wav
+- "Meow of a pleading cat.oga" by Heismark — Public domain
+  https://commons.wikimedia.org/wiki/File:Meow_of_a_pleading_cat.oga
+- "Purring cat.oga" by Mysid — Public domain
+  https://commons.wikimedia.org/wiki/File:Purring_cat.oga
+
+Footsteps
+- "Walking on grass (Gravity Sound).wav" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_on_grass_(Gravity_Sound).wav
+- "Walking on small wooden bridge (Gravity Sound).wav" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_on_small_wooden_bridge_(Gravity_Sound).wav
+- "Walking through leaves (Gravity Sound).wav" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_through_leaves_(Gravity_Sound).wav
+- "Walking on gravel (Gravity Sound).mp3" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_on_gravel_(Gravity_Sound).mp3
+
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+Everything else (wind, crickets, chimes, music box, other effects) is
+synthesized in the browser.
