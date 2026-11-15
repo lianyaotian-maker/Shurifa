@@ -9,6 +9,7 @@
   ];
   const HOUSE = { x0: -3.6, x1: 3.6, z0: -2.8, z1: 2.8 };
   const PORCH = { x0: -1.45, x1: 1.45, z0: 2.8, z1: 4.4 };
+  const CHIMNEY = { x0: 3.6, x1: 4.32, z0: -0.4, z1: 0.4 };
   const TREES = [
     { x: 8.4, z: -4.6, type: 'oak', s: 1.12 },
     { x: -6.8, z: 9.6, type: 'blossom', s: 0.92 },
@@ -101,7 +102,7 @@
     if (py < -0.5) return false;
     const az = Math.abs(pz);
     if (Math.abs(px) < 4.0 && az < 3.3 && py < 4.75 - 0.643 * az) return true;
-    if (Math.abs(px - 2.1) < 0.32 && Math.abs(pz + 1.1) < 0.32 && py < 5.45) return true;
+    if (px > 3.6 && px < 4.32 && Math.abs(pz) < 0.4 && py < 5.55) return true;
     return false;
   }
 
@@ -181,6 +182,7 @@
         let m = 1 - G.smooth(0.6, 1.05, pathDist(x, z));
         m = Math.max(m, 1 - G.smooth(0.05, 0.45, rectDist(x, z, HOUSE)));
         m = Math.max(m, 1 - G.smooth(0.0, 0.3, rectDist(x, z, PORCH)));
+        m = Math.max(m, 1 - G.smooth(0.0, 0.25, rectDist(x, z, CHIMNEY)));
         for (const t of TREES) m = Math.max(m, 1 - G.smooth(0.35 * t.s, 0.8 * t.s, Math.hypot(x - t.x, z - t.z)));
         mask[idx] = m;
       }

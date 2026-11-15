@@ -62,7 +62,7 @@
       uLT: { value: 0 },
       uAmount: { value: 0 }
     }, null, false, 12);
-    FX.smoke = puff(scene, 46, new THREE.Vector3(2.1, 5.55, -1.1), 7, 6, 2.2, 0.5, 2.6, [0.86, 0.84, 0.88], 7, 9);
+    FX.smoke = puff(scene, 46, new THREE.Vector3(3.97, 5.66, 0), 7, 6, 2.2, 0.5, 2.6, [0.86, 0.84, 0.88], 7, 9);
     FX.steam = puff(scene, 14, G.Interior.steamOrigin, 2.6, 0.45, 0.12, 0.05, 0.24, [1, 1, 1], 8, 9);
     FX.steam.material.uniforms.uAmount.value = 0.55;
   };

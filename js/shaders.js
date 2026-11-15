@@ -416,15 +416,19 @@ attribute vec4 aSeed;
 uniform float uLT;
 uniform float uAmount;
 uniform float uPx;
+uniform vec2 uBdayOrigin;
 varying float vAlpha;
 varying float vFog;
 varying float vGlow;
 void main(){
-  float ang = aSeed.x * 6.2832;
-  float rad = 9.0 + aSeed.y * 75.0;
-  vec2 xz = vec2(cos(ang), sin(ang)) * rad;
+  // 三成的灯从对方身边升起，其余散在整片草原上
+  bool nearP = aSeed.x < 0.3;
+  float ang = fract(aSeed.x * 7.31) * 6.2832;
+  float rad = nearP ? 5.0 + aSeed.y * 17.0 : 9.0 + aSeed.y * 75.0;
+  vec2 xz = (nearP ? uBdayOrigin : vec2(0.0)) + vec2(cos(ang), sin(ang)) * rad;
+  if (abs(xz.x) < 4.8 && abs(xz.y) < 4.4) xz.x += (xz.x < 0.0 ? -1.0 : 1.0) * 6.5; // 不从屋里升起
   float speed = 0.6 + 0.6 * aSeed.z;
-  float delay = aSeed.w * 10.0;
+  float delay = nearP ? aSeed.w * 3.5 : 1.5 + aSeed.w * 10.0;
   float tt = uLT - delay;
   float life = 120.0 / speed;
   float age = mod(max(tt, 0.0), life);
@@ -437,7 +441,7 @@ void main(){
   vAlpha = a;
   vGlow = 0.75 + 0.25 * sin(uTime * 3.0 + aSeed.w * 30.0);
   vFog = fogF(dist) * 0.6;
-  gl_PointSize = min(3.4 * uPx / max(dist, 0.5), 220.0) * step(0.003, a);
+  gl_PointSize = min(2.8 * uPx / max(dist, 0.5), 220.0) * step(0.003, a);
   gl_Position = projectionMatrix * mv;
 }
 `;
@@ -447,19 +451,24 @@ varying float vFog;
 varying float vGlow;
 void main(){
   vec2 q = gl_PointCoord - 0.5;
-  float halo = exp(-dot(q, q) * 14.0) * 0.55;
-  float yy = q.y;
-  float k = clamp((yy + 0.2) / 0.37, 0.0, 1.0);
-  float hw = mix(0.135, 0.095, k);
-  float top = -0.2 + 0.03 * (1.0 - pow(clamp(abs(q.x) / 0.135, 0.0, 1.0), 2.0));
-  float body = (1.0 - smoothstep(hw - 0.015, hw, abs(q.x))) * smoothstep(top - 0.01, top + 0.005, yy) * (1.0 - smoothstep(0.165, 0.175, yy));
-  vec3 bodyCol = mix(vec3(1.0, 0.42, 0.16), vec3(1.0, 0.86, 0.52), k * k) * (0.75 + 0.35 * vGlow);
-  vec3 haloCol = vec3(1.0, 0.66, 0.34);
-  vec3 col = mix(haloCol, bodyCol, body);
-  col = mix(col, uFogColor, vFog * 0.5);
-  float a = max(body, halo * 0.6 * vGlow);
+  float halo = exp(-dot(q, q) * 16.0) * 0.5 * vGlow;
+  float k = clamp((q.y + 0.19) / 0.36, 0.0, 1.0);
+  float kt = min(k / 0.16, 1.0);
+  float hw = mix(0.125, 0.09, k) * sqrt(max(0.0, 1.0 - (1.0 - kt) * (1.0 - kt)));
+  float inY = step(-0.19, q.y) * step(q.y, 0.17);
+  float body = (1.0 - smoothstep(hw - 0.012, hw, abs(q.x))) * inY;
+  float xr = abs(q.x) / max(hw, 0.001);
+  float shade = 1.0 - 0.42 * xr * xr;
+  float rib = 1.0 - 0.2 * (1.0 - smoothstep(0.0, 0.06, abs(xr - 0.5)));
+  vec3 paper = mix(vec3(0.95, 0.36, 0.14), vec3(1.0, 0.86, 0.5), pow(k, 1.4));
+  float flame = exp(-(q.x * q.x * 900.0 + (q.y - 0.12) * (q.y - 0.12) * 500.0));
+  vec3 col = paper * shade * rib * (0.75 + 0.35 * vGlow) + vec3(1.0, 0.95, 0.75) * flame * 0.8;
+  col = mix(col, vec3(0.45, 0.16, 0.08), smoothstep(0.152, 0.17, q.y) * 0.7);
+  vec3 c = mix(vec3(1.0, 0.66, 0.34), col, body);
+  c = mix(c, uFogColor, vFog * 0.5);
+  float a = max(body, halo);
   if (a < 0.01) discard;
-  gl_FragColor = vec4(col, a * vAlpha);
+  gl_FragColor = vec4(c, a * vAlpha);
 }
 `;
 

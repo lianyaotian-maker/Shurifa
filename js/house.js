@@ -71,6 +71,19 @@
       }
     }), true);
     t.deck = G.tex(planks(256, 256, '#9c7553', 'rgba(60,35,20,0.5)', 8, false, 13), true);
+    t.brick = G.tex(G.canvas(128, 128, (x) => {
+      const r = G.rng(17);
+      x.fillStyle = '#b8a594';
+      x.fillRect(0, 0, 128, 128);
+      for (let row = 0; row < 8; row++) {
+        const off = row % 2 ? 16 : 0;
+        for (let c = -1; c < 5; c++) {
+          const v = r();
+          x.fillStyle = 'rgb(' + Math.round(128 + v * 28) + ',' + Math.round(66 + v * 16) + ',' + Math.round(52 + v * 10) + ')';
+          x.fillRect(c * 32 + off + 2, row * 16 + 2, 28, 12);
+        }
+      }
+    }), true);
     t.door = G.tex(G.canvas(128, 256, (x) => {
       x.fillStyle = '#2f5e64';
       x.fillRect(0, 0, 128, 256);
@@ -172,7 +185,7 @@
       roof: G.lambert({ map: tx.roof }),
       stone: G.lambert({ map: tx.stone }),
       deck: G.lambert({ map: tx.deck }),
-      brick: G.lambert({ color: 0x7d4b3e }),
+      brick: G.lambert({ map: tx.brick }),
       fbox: G.lambert({ vertexColors: true }),
       glass: G.patch(new THREE.MeshBasicMaterial({ color: 0xffe6bf, transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide })),
       int: G.SH.room(0xffffff, tx.wallIn),
@@ -235,9 +248,11 @@
     mg.box(6.9, 0.04, 5.3, 0, FY - 0.02, 0, (n) => (n.y > 0.7 ? 'floor' : null), { uvScale: 1 / 1.6 });
     mg.box(2.9, 0.1, 1.25, 0, 0.28, 3.42, 'deck', { uvScale: 1 / 1.2 });
     mg.box(1.7, 0.17, 0.38, 0, 0.085, 4.22, 'deck', { uvScale: 1 / 1.2 });
-    // 烟囱
-    mg.box(0.6, 1.6, 0.6, 2.1, 4.66, -1.1, 'brick');
-    mg.box(0.74, 0.08, 0.74, 2.1, 5.48, -1.1, 'stone');
+    // 烟囱：砌在右侧山墙外面，从地面一直通到屋脊上方
+    mg.box(0.7, 2.4, 0.8, 3.97, 1.2, 0, 'brick', { uvScale: 1 / 0.9 });
+    mg.box(0.64, 0.2, 0.7, 3.97, 2.48, 0, 'brick', { uvScale: 1 / 0.9 });
+    mg.box(0.56, 3.0, 0.56, 3.97, 4.0, 0, 'brick', { uvScale: 1 / 0.9 });
+    mg.box(0.7, 0.08, 0.7, 3.97, 5.54, 0, 'stone');
     // 室内横梁与屋脊梁
     for (const bx of [-2.2, 0, 2.2]) mg.box(0.14, 0.18, 5.3, bx, TOP - 0.05, 0, 'intDark');
     mg.box(6.9, 0.16, 0.16, 0, RIDGE - 0.16, 0, 'intDark');
@@ -287,6 +302,7 @@
     R.push({ x0: -3.6, x1: -0.5, z0: 2.62, z1: 2.8 }, { x0: 0.5, x1: 3.6, z0: 2.62, z1: 2.8 });
     R.push({ x0: -3.6, x1: 3.6, z0: -2.8, z1: -2.62 });
     R.push({ x0: -3.6, x1: -3.42, z0: -2.8, z1: 2.8 }, { x0: 3.42, x1: 3.6, z0: -2.8, z1: 2.8 });
+    R.push({ x0: 3.6, x1: 4.32, z0: -0.4, z1: 0.4 });
   };
 
   H.update = function (dt, player, snow) {

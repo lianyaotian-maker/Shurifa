@@ -73,6 +73,7 @@
   await G.nextFrame();
   G.Interior.build(scene);
   G.FX.build(scene);
+  G.Party.build(scene);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -185,24 +186,55 @@
 
   /* ---------- 5 月 21 日 ---------- */
   let clock = 0;
-  const B = { on: false, hold: 0, start: 0, amt: 0, lantern: -1e4 };
+  const B = { on: false, hold: 0, start: 0, amt: 0, lantern: -1e4, fw: -1e4, special: false };
+  const camForward = () => new THREE.Vector3(-Math.sin(G.Player.yaw), 0, -Math.cos(G.Player.yaw));
   if (targetDay === SPECIAL) {
-    // 正好在这一天打开：彩蛋直接出现
+    // 正好在这一天打开：彩蛋直接出现（烟花等走进草原再放）
     B.on = true;
     B.amt = 1;
     B.start = -200;
     B.lantern = -70;
     U.uBdayOrigin.value.set(G.Player.x, G.Player.z);
     G.Interior.cakeScale = 1;
+    G.Party.trigger(G.Player, camForward());
+  }
+  // 那一刻的界面反馈：滑块处炸开金色光点，屏幕四周泛起暖光
+  const SPARK = ['#ffe3a3', '#ffc7d6', '#fff6e6', '#ffd27a', '#c9f2dc', '#cfe0ff'];
+  function celebrate() {
+    const r = thumb.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    for (let i = 0; i < 26; i++) {
+      const el = document.createElement('i');
+      const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 110;
+      el.style.left = cx + 'px';
+      el.style.top = cy + 'px';
+      el.style.setProperty('--dx', Math.cos(a) * d + 'px');
+      el.style.setProperty('--dy', Math.abs(Math.sin(a)) * d * 0.9 + 10 + 'px');
+      el.style.background = SPARK[i % SPARK.length];
+      el.style.animationDelay = (Math.random() * 0.18).toFixed(2) + 's';
+      $('sparks').appendChild(el);
+      setTimeout(() => el.remove(), 1800);
+    }
+    const f = $('flash');
+    f.classList.remove('go');
+    void f.offsetWidth;
+    f.classList.add('go');
   }
   function updateBirthday(dt) {
     const special = targetDay === SPECIAL;
+    if (special !== B.special) {
+      B.special = special;
+      $('datebar').classList.toggle('special', special);
+    }
     B.hold = special ? B.hold + dt : 0;
     if (!B.on && special && B.hold > 0.25) {
       B.on = true;
       B.start = clock;
       B.lantern = clock;
+      B.fw = clock;
       U.uBdayOrigin.value.set(G.Player.x, G.Player.z);
+      G.Party.trigger(G.Player, camForward());
+      celebrate();
     }
     if (B.on && !special) B.on = false;
     B.amt += ((B.on ? 1 : 0) - B.amt) * Math.min(1, dt * (B.on ? 0.9 : 1.4));
@@ -314,6 +346,10 @@
     const hideHint = () => $('hint').classList.remove('on');
     setTimeout(hideHint, 7000);
     G.Player.onFirstMove = () => setTimeout(hideHint, 1500);
+    if (B.on) {
+      B.fw = clock;
+      setTimeout(celebrate, 900);
+    }
   }
   $('go').addEventListener('click', begin);
   $('jump').addEventListener('pointerdown', (e) => { e.preventDefault(); G.Player.jump(); });
@@ -360,6 +396,7 @@
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);
     updateBump(dt);
     G.FX.update(S, { mul: QUAL[quality].mul, bday: B.amt, hint: hint, lanternT: clock - B.lantern });
+    G.Party.update(dt, clock, { amt: B.amt, pT: clock - B.start, fwT: clock - B.fw });
 
     // 走进屋：面从天花板哗啦啦掉下来
     const inside = G.Player.inHouse(G.Player.x, G.Player.z) && G.Player.z < 2.2;

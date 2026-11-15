@@ -140,6 +140,7 @@
         }
       }
       for (const c of C.circles) {
+        if (c.off) continue;
         const dx = P.x - c.x, dz = P.z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
         if (d < m && d > 1e-5) {
           P.x = c.x + (dx / d) * m;
