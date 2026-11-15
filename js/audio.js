@@ -402,9 +402,11 @@
     try {
       const man = await (await fetch('sounds/sounds.json')).json();
       const S = { steps: {} };
-      S.meow = { buf: await loadBuf(man.meow.file), segs: man.meow.segs };
-      S.purr = { buf: await loadBuf(man.purr.file), loop: man.purr.loop };
+      if (man.meow) S.meow = { buf: await loadBuf(man.meow.file), segs: man.meow.segs };
+      if (man.purr) S.purr = { buf: await loadBuf(man.purr.file), loop: man.purr.loop };
       for (const k in man.steps) S.steps[k] = { buf: await loadBuf(man.steps[k].file), hits: man.steps[k].hits };
+      S.amb = {};
+      for (const k in man.amb || {}) S.amb[k] = { buf: await loadBuf(man.amb[k].file), loop: man.amb[k].loop };
       A.samples = S;
     } catch (e) {
       A.samples = null;
@@ -462,6 +464,79 @@
     }
     return A.meowInto(A.bus, now(), kind, { pitch: rnd(0.94, 1.07), stretch: rnd(0.92, 1.1), vol: vol });
   };
+  /* ---------- 环境声：风、草原、鸟叫、虫鸣（有录音用录音，没有就合成风声和虫鸣） ---------- */
+  const amb = { layers: {} };
+  function makeCrickets(ctx) {
+    const sr = ctx.sampleRate, len = sr * 4, buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+    for (const v of [[4600, 0.0], [4300, 0.31], [5100, 0.17]]) {
+      let t = v[1];
+      while (t < 3.9) {
+        for (let p = 0; p < 3; p++) {
+          const n0 = Math.floor((t + p * 0.035) * sr);
+          for (let i = 0; i < sr * 0.022 && n0 + i < len; i++) {
+            const x = i / sr, e = Math.sin(Math.PI * x / 0.022);
+            d[n0 + i] += 0.25 * e * e * Math.sin(2 * Math.PI * v[0] * x);
+          }
+        }
+        t += 0.42 + Math.random() * 0.2;
+      }
+    }
+    return buf;
+  }
+  function startLayer(name, real) {
+    const ctx = A.ctx, src = ctx.createBufferSource();
+    let filt = null;
+    if (real) {
+      src.buffer = real.buf;
+      src.loopStart = real.loop[0];
+      src.loopEnd = real.loop[1];
+    } else if (name === 'wind') {
+      src.buffer = A.bus.noise;
+      filt = ctx.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.value = 420;
+      filt.Q.value = 0.7;
+    } else if (name === 'crickets') src.buffer = A.cricketBuf || (A.cricketBuf = makeCrickets(ctx));
+    else return null;
+    src.loop = true;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    (filt ? (src.connect(filt), filt) : src).connect(g);
+    g.connect(amb.out);
+    src.start(ctx.currentTime, real ? Math.random() * (real.loop[1] - real.loop[0]) : Math.random());
+    return { src, g, filt, real: !!real };
+  }
+  A.ambient = function (o) {
+    if (!ready()) return;
+    const ctx = A.ctx, t = ctx.currentTime, R = (A.samples && A.samples.amb) || {};
+    if (!amb.out) {
+      amb.out = ctx.createGain();
+      amb.lp = ctx.createBiquadFilter();
+      amb.lp.type = 'lowpass';
+      amb.lp.frequency.value = 18000;
+      amb.out.connect(amb.lp);
+      amb.lp.connect(A.bus.out);
+    }
+    // 在屋里：外面的声音变闷、变小
+    amb.lp.frequency.setTargetAtTime(o.inside ? 850 : 18000, t, 0.5);
+    amb.out.gain.setTargetAtTime(o.inside ? 0.5 : 1, t, 0.5);
+    const gust = 0.55 + 0.3 * Math.sin(t * 0.37) + 0.15 * Math.sin(t * 0.13 + 1.3);
+    const want = { wind: o.wind * 0.42 * gust, meadow: o.meadow * 0.32, birds: o.birds * 0.3, crickets: o.crickets * 0.26 };
+    for (const name in want) {
+      let L = amb.layers[name];
+      // 录音加载好以后，把合成的那层换成录音
+      if (L && !L.real && R[name]) {
+        L.g.gain.setTargetAtTime(0, t, 0.6);
+        L.src.stop(t + 3);
+        L = amb.layers[name] = null;
+      }
+      if (!L && want[name] > 0.005) L = amb.layers[name] = startLayer(name, R[name]);
+      if (!L) continue;
+      L.g.gain.setTargetAtTime(want[name] * (L.real ? 1 : name === 'wind' ? 1.6 : 0.7), t, 0.8);
+      if (L.filt) L.filt.frequency.setTargetAtTime(300 + 380 * gust, t, 0.8);
+    }
+  };
+
   // 脚步声：每踩一步放一下；雪地用碎石声压低音调再滤掉高频，听起来像踩雪
   A.step = function (surface, vol) {
     if (!ready() || !A.samples) return;
@@ -564,6 +639,9 @@
         break;
       case 'heart': // 冒爱心时很轻的一声
         A.boxInto(b, t, 1567.98, 0.06 * vol);
+        break;
+      case 'paper': // 拆信
+        for (let i = 0; i < 5; i++) burst(b, t + i * rnd(0.05, 0.11), rnd(0.06, 0.14), 0.07 * vol, 'bandpass', rnd(1500, 3400), 0, 0.9, 0.1, 0.01);
         break;
       case 'jingle': // 鸡柳项圈上的小铃铛
         A.bellInto(b, t, rnd(2900, 3300), 0.03 * vol, 0.35);

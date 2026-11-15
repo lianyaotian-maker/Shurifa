@@ -312,16 +312,36 @@
       add(0.07, 0.46, 0.07, sx, 0.23, 0.15);
       add(0.07, 1.0, 0.07, sx, 0.5, -0.2);
     }
+    // 长椅上放着一封信（火漆封口）
+    const env = new THREE.Group();
+    env.position.set(0.38, 0.493, 0.03);
+    env.rotation.y = 0.22;
+    const paper = G.lambert({ color: 0xfbf3e2, emissive: 0x3a3428 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.006, 0.17), paper);
+    const flap = new THREE.Mesh(new THREE.ConeGeometry(0.104, 0.07, 4, 1), G.lambert({ color: 0xf1e6cf, emissive: 0x2e281e }));
+    flap.scale.set(1.18, 0.05, 0.84);
+    flap.rotation.y = Math.PI / 4;
+    flap.position.set(0, 0.004, -0.03);
+    const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.024, 0.008, 18), G.lambert({ color: 0xb3262e, emissive: 0x3a0a0c }));
+    seal.position.set(0, 0.008, 0.012);
+    env.add(body, flap, seal);
+    g.add(env);
+    T.letterSeal = seal;
     scene.add(g);
     G.Colliders.circles.push({ x: bx, z: bz, r: 0.5 });
-    Tap.add(Tap.proxy(g, 0.8, 0, 0.6, 0), 4.5, () => {
+    const ep = Tap.add(Tap.proxy(env, 0.17, 0, 0.02, 0), 4.5, () => {
+      G.Audio.sfx('paper');
+      G.UI.letter();
+    }, { hint: (v) => env.getWorldPosition(v).setY(by + 0.85), hintDist: 11 });
+    ep.prio = true;
+    Tap.add(Tap.proxy(g, 0.62, -0.25, 0.6, 0), 4.5, () => {
       G.Player.sit({
         pos: (v) => v.set(bx + f.x * 0.05, by + 0.46 + 0.68, bz + f.z * 0.05),
         exit: { x: bx + f.x * 1.1, z: bz + f.z * 1.1 },
         yaw: Math.atan2(-f.x, -f.z),
         label: '坐着看夕阳 · 拨动摇杆起身'
       });
-    }, { hint: new THREE.Vector3(bx, by + 1.25, bz), hintDist: 10 });
+    }, { hint: new THREE.Vector3(bx - 0.4, by + 1.25, bz), hintDist: 10 });
   }
 
   /* ---------- 信箱 ---------- */

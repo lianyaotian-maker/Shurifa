@@ -256,6 +256,30 @@
     }
   };
 
+  /* ---------- 横屏：手机竖着拿时，把整个画面转 90°，始终以横屏显示 ---------- */
+  G.view = { w: window.innerWidth, h: window.innerHeight, rot: false };
+  G.updateView = function () {
+    const W = window.innerWidth, H = window.innerHeight;
+    let coarse = false;
+    try { coarse = matchMedia('(pointer: coarse)').matches; } catch (e) { /* 忽略 */ }
+    const rot = coarse && H > W;
+    const st = document.getElementById('stage');
+    G.view.rot = rot;
+    G.view.w = rot ? H : W;
+    G.view.h = rot ? W : H;
+    document.body.classList.toggle('rot', rot);
+    if (st) {
+      st.style.width = rot ? H + 'px' : '';
+      st.style.height = rot ? W + 'px' : '';
+      st.style.transform = rot ? 'translateX(' + W + 'px) rotate(90deg)' : '';
+    }
+    return G.view;
+  };
+  // 屏幕坐标（clientX/Y）→ 画面坐标
+  G.toLocal = function (cx, cy) {
+    return G.view.rot ? { x: cy, y: window.innerWidth - cx } : { x: cx, y: cy };
+  };
+
   // 等待一帧，让加载文字有机会刷新
   G.nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 })();

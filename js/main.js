@@ -28,7 +28,8 @@
   G.renderer = renderer;
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0xffffff, U.uFogDensity.value);
-  const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.05, 700);
+  G.updateView();
+  const camera = new THREE.PerspectiveCamera(58, G.view.w / G.view.h, 0.05, 700);
   const hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 0.95);
   const sun = new THREE.DirectionalLight(0xffffff, 0.9);
   sun.position.copy(U.uSunDir.value).multiplyScalar(100);
@@ -48,16 +49,13 @@
   let dpr = Math.min(QUAL[quality].dpr, window.devicePixelRatio || 1);
 
   function resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const v = G.updateView(), w = v.w, h = v.h;
     renderer.setPixelRatio(dpr);
     renderer.setSize(w, h);
     if (G.Post) G.Post.resize();
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     U.uPx.value = (h * dpr) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-    const rot = $('rotate');
-    const portrait = h > w && matchMedia('(pointer: coarse)').matches;
-    rot.hidden = !portrait;
   }
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', () => setTimeout(resize, 250));
@@ -128,16 +126,18 @@
   let dragId = null;
   const fromX = (x) => {
     const r = slider.getBoundingClientRect();
-    return G.clamp((x - r.left) / r.width, 0, 1) * 364;
+    // 画面转了 90° 时，滑条在屏幕上是竖着的
+    const k = G.view.rot ? (x.clientY - r.top) / r.height : (x.clientX - r.left) / r.width;
+    return G.clamp(k, 0, 1) * 364;
   };
   slider.addEventListener('pointerdown', (e) => {
     dragId = e.pointerId;
-    slider.setPointerCapture(e.pointerId);
+    try { slider.setPointerCapture(e.pointerId); } catch (err) { /* 忽略 */ }
     slider.classList.add('drag');
-    setDay(fromX(e.clientX), true);
+    setDay(fromX(e), true);
     e.preventDefault();
   });
-  slider.addEventListener('pointermove', (e) => { if (e.pointerId === dragId) setDay(fromX(e.clientX), true); });
+  slider.addEventListener('pointermove', (e) => { if (e.pointerId === dragId) setDay(fromX(e), true); });
   const endDrag = (e) => {
     if (e.pointerId === dragId) {
       dragId = null;
@@ -211,7 +211,7 @@
   const SPARK = ['#ffe3a3', '#ffc7d6', '#fff6e6', '#ffd27a', '#c9f2dc', '#cfe0ff'];
   function celebrate() {
     const r = thumb.getBoundingClientRect();
-    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const c = G.toLocal(r.left + r.width / 2, r.top + r.height / 2), cx = c.x, cy = c.y;
     for (let i = 0; i < 26; i++) {
       const el = document.createElement('i');
       const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 110;
@@ -285,7 +285,7 @@
     const el = document.createElement('div');
     el.className = 'pop';
     el.textContent = text;
-    const w = window.innerWidth;
+    const w = G.view.w;
     el.style.left = G.clamp(x, 120, w - 120) + 'px';
     el.style.top = Math.max(90, y - 14) + 'px';
     $('pops').appendChild(el);
@@ -293,7 +293,22 @@
     setTimeout(() => el.remove(), 2600);
   }
   // 给其他模块用的界面小工具
+  // 长椅上的信
+  const letterEl = $('letter');
+  function closeLetter() {
+    letterEl.classList.remove('on');
+    setTimeout(() => { if (!letterEl.classList.contains('on')) letterEl.hidden = true; }, 500);
+    G.Player.enabled = true;
+  }
+  letterEl.addEventListener('click', (e) => { if (e.target === letterEl || e.target.id === 'letterClose') closeLetter(); });
   G.UI = {
+    letter() {
+      letterEl.hidden = false;
+      G.Player.enabled = false;
+      G.Player.jx = G.Player.jy = 0;
+      requestAnimationFrame(() => letterEl.classList.add('on'));
+      $('letterClose').focus({ preventScroll: true });
+    },
     pop,
     spicy() {
       const el = $('spicy');
@@ -342,20 +357,31 @@
   G.Tap.add(G.House.door, 99, null, { block: true });
   G.Player.onTap = function (x, y) {
     G.Audio.resume();
-    ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+    ndc.set((x / G.view.w) * 2 - 1, -(y / G.view.h) * 2 + 1);
     ray.setFromCamera(ndc, camera);
     const hits = ray.intersectObjects(G.Tap.list, true);
+    let pickE = null, pickH = null;
     for (const h of hits) {
       let o = h.object;
       while (o && !o.userData.tap) o = o.parent;
       if (!o) continue;
       const e = o.userData.tap;
       if (e.enabled && !e.enabled()) continue;
-      if (e.block || h.distance > e.dist) return;
-      e.quiet = clock + 22;
-      e.fn(h, x, y);
-      return;
+      if (!pickE) {
+        if (e.block || h.distance > e.dist) return;
+        pickE = e;
+        pickH = h;
+        if (e.prio) break;
+      } else if (e.prio && !e.block && h.distance < pickH.distance + 1.2 && h.distance <= e.dist) {
+        // 小东西（比如长椅上的信）优先于包着它的大物件
+        pickE = e;
+        pickH = h;
+        break;
+      } else if (h.distance > pickH.distance + 1.2) break;
     }
+    if (!pickE) return;
+    pickE.quiet = clock + 22;
+    pickE.fn(pickH, x, y);
   };
   const bp = new THREE.Vector3(), bq = new THREE.Quaternion(), bs = new THREE.Vector3(), bm = new THREE.Matrix4();
   function updateBump(dt) {
@@ -427,6 +453,7 @@
   });
 
   /* ---------- 主循环 ---------- */
+  let ambT = 0;
   let last = performance.now(), ema = 1 / 60, adaptT = 0, holdUp = 0, wasInside = false, outsideT = 99;
   function frame(now) {
     requestAnimationFrame(frame);
@@ -479,6 +506,19 @@
     G.Things.update(dt, clock, ctx);
     G.Cat.update(dt, clock, ctx);
     G.Life.update(S, B.amt);
+    // 环境声每 0.25 秒按季节调一次
+    ambT -= dt;
+    if (ambT <= 0) {
+      ambT = 0.25;
+      const snow = U.uSnow.value;
+      G.Audio.ambient({
+        wind: G.clamp(0.45 + 0.45 * snow + 0.25 * S.leaves, 0, 1),
+        meadow: 1 - 0.7 * snow,
+        birds: G.clamp((S.flw * 1.4 + S.petals * 0.4) * (1 - snow), 0, 1),
+        crickets: G.clamp(S.ffly, 0, 1),
+        inside: G.Player.inHouse(G.Player.x, G.Player.z)
+      });
+    }
     // 鸡柳和你脚下的草会被压倒一小圈
     const cs = G.Cat.state;
     U.uPress.value[0].set(G.Cat.x, G.Cat.z, 0.62, cs === 'walk' ? 0.55 : 0.92);

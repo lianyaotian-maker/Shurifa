@@ -37,13 +37,19 @@
       joyBase.style.top = '';
       joyKnob.style.transform = 'translate(-50%, -50%)';
     };
-    function down(e) {
+    // 把屏幕坐标换成画面坐标（画面可能转了 90°）
+    const loc = (e) => {
+      const q = G.toLocal(e.clientX, e.clientY);
+      return { pointerId: e.pointerId, pointerType: e.pointerType, clientX: q.x, clientY: q.y, raw: e };
+    };
+    function down(ev) {
       if (!P.enabled) return;
-      el.setPointerCapture && el.setPointerCapture(e.pointerId);
+      const e = loc(ev);
+      try { el.setPointerCapture(ev.pointerId); } catch (err) { /* 有些浏览器会拒绝，不影响操作 */ }
       start[e.pointerId] = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
       last[e.pointerId] = { x: e.clientX, y: e.clientY };
       const touch = e.pointerType !== 'mouse';
-      if (touch && joyId === null && e.clientX < window.innerWidth * 0.42) {
+      if (touch && joyId === null && e.clientX < G.view.w * 0.42) {
         joyId = e.pointerId;
         jc = { x: e.clientX, y: e.clientY };
         joyBase.classList.add('active');
@@ -52,9 +58,10 @@
       } else if (lookId === null) {
         lookId = e.pointerId;
       }
-      e.preventDefault();
+      ev.preventDefault();
     }
-    function move(e) {
+    function move(ev) {
+      const e = loc(ev);
       const s = start[e.pointerId];
       if (!s) return;
       const l = last[e.pointerId];
@@ -78,9 +85,10 @@
         P.pitch = G.clamp(P.pitch - dy * k, -1.25, 1.2);
         if (s.moved > 12) P.noteMove();
       }
-      e.preventDefault();
+      ev.preventDefault();
     }
-    function up(e) {
+    function up(ev) {
+      const e = loc(ev);
       const s = start[e.pointerId];
       if (s && s.moved < 10 && performance.now() - s.t < 350 && P.onTap) P.onTap(e.clientX, e.clientY);
       if (e.pointerId === joyId) {

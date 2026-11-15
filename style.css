@@ -1,6 +1,11 @@
 /* 草原小屋 · 界面
    布局：全屏 3D 画面；上方居中是日期条，右上画质，左下摇杆，右下跳跃，开场卡片居中。 */
 :root {
+  /* 安全区：竖着拿手机时画面会转成横屏，这四个值也跟着换边 */
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
   --ink: #3a2b26;
   --paper: rgba(255, 249, 242, 0.94);
   --glass: rgba(40, 28, 44, 0.26);
@@ -28,6 +33,14 @@ html, body {
   overscroll-behavior: none;
 }
 body { position: fixed; inset: 0; }
+#stage { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; }
+body.rot {
+  --sal: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-bottom, 0px);
+  --sat: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-left, 0px);
+}
+body.rot #stage { transform-origin: 0 0; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); outline-offset: 3px; }
@@ -41,10 +54,10 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 
 #datebar {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  top: calc(var(--sat) + 8px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(600px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 230px));
+  width: min(600px, calc(100vw - var(--sal) - var(--sar) - 230px));
   min-width: 300px;
   display: flex;
   align-items: center;
@@ -116,7 +129,7 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 
 .chip {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  top: calc(var(--sat) + 12px);
   height: 34px;
   padding: 0 14px;
   border-radius: 17px;
@@ -128,9 +141,9 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
-#quality { right: calc(env(safe-area-inset-right, 0px) + 14px); }
-#help { left: calc(env(safe-area-inset-left, 0px) + 14px); width: 34px; padding: 0; font-weight: 600; }
-#sound { left: calc(env(safe-area-inset-left, 0px) + 54px); padding: 0 11px; font-size: 12px; }
+#quality { right: calc(var(--sar) + 14px); }
+#help { left: calc(var(--sal) + 14px); width: 34px; padding: 0; font-weight: 600; }
+#sound { left: calc(var(--sal) + 54px); padding: 0 11px; font-size: 12px; }
 #sound.off { color: var(--muted); text-decoration: line-through; }
 
 #joy {
@@ -138,8 +151,8 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
   width: 116px;
   height: 116px;
   margin: -58px 0 0 -58px;
-  left: calc(env(safe-area-inset-left, 0px) + 98px);
-  top: calc(100% - env(safe-area-inset-bottom, 0px) - 92px);
+  left: calc(var(--sal) + 98px);
+  top: calc(100% - var(--sab) - 92px);
   border-radius: 50%;
   border: 2px solid rgba(255, 248, 240, 0.4);
   background: radial-gradient(circle, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.12));
@@ -161,8 +174,8 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 }
 #jump {
   position: fixed;
-  right: calc(env(safe-area-inset-right, 0px) + 28px);
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 26px);
+  right: calc(var(--sar) + 28px);
+  bottom: calc(var(--sab) + 26px);
   width: 66px;
   height: 66px;
   border-radius: 50%;
@@ -180,7 +193,7 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 #hint.on { opacity: 1; }
 #hint .h {
   position: absolute;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 160px);
+  bottom: calc(var(--sab) + 160px);
   padding: 8px 14px;
   border-radius: 12px;
   background: rgba(30, 20, 34, 0.38);
@@ -189,14 +202,14 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
   color: var(--muted);
 }
 #hint .h b { color: var(--text); font-weight: 600; margin-right: 6px; }
-#hint .left { left: calc(env(safe-area-inset-left, 0px) + 40px); }
-#hint .right { right: calc(env(safe-area-inset-right, 0px) + 40px); text-align: right; }
+#hint .left { left: calc(var(--sal) + 40px); }
+#hint .right { right: calc(var(--sar) + 40px); text-align: right; }
 
 /* ---------- 坐下时的提示、被辣到的红晕 ---------- */
 #seat {
   position: fixed;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  bottom: calc(var(--sab) + 22px);
   transform: translateX(-50%);
   padding: 7px 16px;
   border-radius: 16px;
@@ -296,6 +309,59 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 #datebar.special #thumb::after { animation: ring 1.6s ease-out infinite; }
 @keyframes ring { 0% { transform: scale(0.85); opacity: 0.95; } 100% { transform: scale(2.3); opacity: 0; } }
 
+/* ---------- 长椅上的信 ---------- */
+#letter {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px max(16px, var(--sar)) 16px max(16px, var(--sal));
+  background: rgba(28, 18, 30, 0.5);
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  touch-action: manipulation;
+}
+#letter.on { opacity: 1; }
+#letter .paper {
+  position: relative;
+  width: min(540px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 30px 34px 22px;
+  border-radius: 4px;
+  color: #4b3426;
+  background:
+    repeating-linear-gradient(180deg, transparent 0 33px, rgba(150, 110, 80, 0.16) 33px 34px),
+    linear-gradient(170deg, #fdf8ec, #f5ead3);
+  box-shadow: 0 18px 50px rgba(20, 8, 20, 0.45), inset 0 0 40px rgba(190, 150, 100, 0.18);
+  transform: translateY(14px) rotate(-1.2deg) scale(0.96);
+  transition: transform 0.55s cubic-bezier(0.2, 1.2, 0.4, 1);
+  -webkit-user-select: text;
+  user-select: text;
+}
+#letter.on .paper { transform: translateY(0) rotate(-1.2deg) scale(1); }
+#letter p {
+  margin: 0;
+  font-family: "Bradley Hand", "Snell Roundhand", "Segoe Print", "Segoe Script", "Apple Chancery", cursive;
+  font-size: clamp(17px, 4.6vh, 22px);
+  line-height: 34px;
+  text-wrap: pretty;
+}
+#letterClose {
+  display: block;
+  margin: 14px 0 0 auto;
+  padding: 6px 16px;
+  border: 1px solid rgba(120, 80, 60, 0.35);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  color: #6a4632;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
 /* ---------- 开场 ---------- */
 #start {
   position: fixed;
@@ -303,7 +369,7 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  padding: 16px max(16px, var(--sar)) 16px max(16px, var(--sal));
   background:
     radial-gradient(ellipse at 50% 120%, rgba(255, 196, 140, 0.35), transparent 60%),
     linear-gradient(180deg, rgba(58, 48, 92, 0.55), rgba(120, 70, 90, 0.35) 55%, rgba(255, 190, 140, 0.25));
@@ -340,33 +406,10 @@ button:focus-visible, #slider:focus-visible { outline: 2px solid var(--warm); ou
 #start .tips { margin: 16px 0 0; font-size: 12px; color: var(--muted); letter-spacing: 0.06em; line-height: 1.7; }
 #a2hs { margin: 6px 0 0; font-size: 12px; color: rgba(255, 236, 214, 0.65); }
 
-/* ---------- 竖屏提示 ---------- */
-#rotate {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 22px;
-  background: linear-gradient(180deg, #3b3157, #7a4f6a 60%, #d99b7a);
-  font-size: 16px;
-  letter-spacing: 0.2em;
-}
-#rotate .phone {
-  width: 46px;
-  height: 80px;
-  border: 3px solid var(--text);
-  border-radius: 10px;
-  animation: turn 2.2s ease-in-out infinite;
-}
-@keyframes turn { 0%, 20% { transform: rotate(0); } 55%, 80% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
-
 @media (max-height: 380px) {
-  #hint .h { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+  #hint .h { bottom: calc(var(--sab) + 140px); }
   #start .sub { margin-bottom: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #go, #rotate .phone, #datebar.special, #datebar.special #thumb::after { animation: none; }
+  #go, #datebar.special, #datebar.special #thumb::after { animation: none; }
 }

@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="stage">
 <div id="view"></div>
 
 <div id="hud">
@@ -45,6 +46,12 @@
 <div id="seat" aria-live="polite"></div>
 <div id="spicy" aria-hidden="true"></div>
 <div id="pops" aria-live="polite"></div>
+<div id="letter" hidden role="dialog" aria-label="一封信">
+  <div class="paper">
+    <p>I treat everyone with sincerity, but I hope I’m not just acting along with you. If I am, then I admit defeat and ask you to spare me, this shy and inexperienced guy.</p>
+    <button id="letterClose" aria-label="收起信">收起</button>
+  </div>
+</div>
 <div id="flash" aria-hidden="true"></div>
 <div id="sparks" aria-hidden="true"></div>
 
@@ -58,8 +65,7 @@
     <p id="a2hs" hidden>想全屏玩：在 Safari 点「分享」→「添加到主屏幕」</p>
   </div>
 </div>
-
-<div id="rotate" hidden><div class="phone"></div><p>请把手机横过来</p></div>
+</div>
 <noscript><p style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;margin:0">需要开启 JavaScript 才能进入草原。</p></noscript>
 
 <script src="js/three.min.js"></script>
