@@ -145,6 +145,13 @@
   const wood = (c) => G.lambert({ color: c, map: G.House.tex.deck });
   const WIND = () => G.U.uWindDir.value;
 
+  function hintSprite(e) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.star, transparent: true, depthWrite: false, fog: false, opacity: 0, blending: THREE.AdditiveBlending, color: 0xfff0cc }));
+      s.renderOrder = 12;
+      s.scale.setScalar(0.24);
+      T.scene.add(s);
+      e.sprite = s;
+  }
   T.build = function (scene) {
     makeTextures();
     T.scene = scene;
@@ -161,13 +168,7 @@
     buildMailbox(scene);
     if (T.buildMore) T.buildMore(scene);
     // 给每个可互动的东西配一颗提示用的小光点
-    for (const e of T.hints) {
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.star, transparent: true, depthWrite: false, fog: false, opacity: 0, blending: THREE.AdditiveBlending, color: 0xfff0cc }));
-      s.renderOrder = 12;
-      s.scale.setScalar(0.24);
-      scene.add(s);
-      e.sprite = s;
-    }
+    for (const e of T.hints) hintSprite(e);
   };
 
   /* ---------- 风铃 ---------- */
@@ -430,6 +431,7 @@
     }
     // 提示光点：走近了才出现，点过之后安静一会儿
     for (const e of T.hints) {
+      if (!e.sprite) hintSprite(e); // 之后才加的东西（比如池塘）
       const hp = typeof e.hint === 'function' ? e.hint(wv) : e.hint;
       const on = (!e.enabled || e.enabled()) && t > e.quiet && hp;
       let a = 0;

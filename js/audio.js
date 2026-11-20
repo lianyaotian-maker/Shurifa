@@ -829,6 +829,42 @@
       case 'paper': // 拆信
         for (let i = 0; i < 5; i++) burst(b, t + i * rnd(0.05, 0.11), rnd(0.06, 0.14), 0.07 * vol, 'bandpass', rnd(1500, 3400), 0, 0.9, 0.1, 0.01);
         break;
+      case 'splash': // 小鱼跃出、落回水面
+        burst(b, t, 0.35, 0.16 * vol, 'bandpass', 1400, 600, 0.8, 0.3, 0.005);
+        burst(b, t + 0.02, 0.18, 0.1 * vol, 'highpass', 3000, 0, 0.7, 0.2);
+        for (let i = 0; i < 6; i++) tone(b, t + 0.05 + Math.random() * 0.25, rnd(900, 1800), rnd(1800, 2600), 0.04, 0.03 * vol);
+        break;
+      case 'frog': { // 呱——呱
+        const n = 2 + Math.floor(Math.random() * 3), f = rnd(180, 260);
+        for (let i = 0; i < n; i++) {
+          const t0 = t + i * rnd(0.16, 0.22), o = b.ctx.createOscillator(), g = b.ctx.createGain(), am = b.ctx.createOscillator(), ag = b.ctx.createGain(), bp = b.ctx.createBiquadFilter();
+          o.type = 'sawtooth';
+          o.frequency.setValueAtTime(f * 0.9, t0);
+          o.frequency.linearRampToValueAtTime(f * 1.12, t0 + 0.11);
+          am.frequency.value = 38;
+          ag.gain.value = 0.5;
+          am.connect(ag);
+          ag.connect(g.gain);
+          bp.type = 'bandpass';
+          bp.frequency.value = 900;
+          bp.Q.value = 1.2;
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.linearRampToValueAtTime(0.09 * vol, t0 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.13);
+          o.connect(bp);
+          bp.connect(g);
+          g.connect(b.out);
+          const w = b.ctx.createGain();
+          w.gain.value = 0.4;
+          g.connect(w);
+          w.connect(b.wet);
+          o.start(t0);
+          am.start(t0);
+          o.stop(t0 + 0.16);
+          am.stop(t0 + 0.16);
+        }
+        break;
+      }
       case 'jingle': // 鸡柳项圈上的小铃铛
         A.bellInto(b, t, rnd(2900, 3300), 0.03 * vol, 0.35);
         A.bellInto(b, t + 0.05, rnd(3300, 3700), 0.02 * vol, 0.3);

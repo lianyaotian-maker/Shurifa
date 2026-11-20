@@ -17,6 +17,8 @@
     const pr = G.Field.PORCH;
     if (x > pr.x0 + 0.05 && x < pr.x1 - 0.05 && z > 2.8 && z < 4.05) return 0.33;
     if (x > -0.85 && x < 0.85 && z >= 4.05 && z < 4.42) return 0.17;
+    const dk = G.Pond && G.Pond.deckAt(x, z);
+    if (dk !== null && dk !== undefined) return dk;
     return G.Field.height(x, z);
   };
 
@@ -222,6 +224,7 @@
     const speed = inside ? 2.3 : 3.8;
     const fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), rx = Math.cos(P.yaw), rz = -Math.sin(P.yaw);
     const mvx = (fx * -iy + rx * ix) * speed, mvz = (fz * -iy + rz * ix) * speed;
+    const px = P.x, pz = P.z;
     if (P.enabled) {
       P.x += mvx * dt;
       P.z += mvz * dt;
@@ -236,6 +239,12 @@
       if (P.moved > 0.6) P.noteMove();
     }
     collide();
+    // 池塘：不能走进水里（栈桥上可以），沿着岸边滑开
+    if (G.Pond && G.Pond.blocked(P.x, P.z)) {
+      if (!G.Pond.blocked(px, P.z)) P.x = px;
+      else if (!G.Pond.blocked(P.x, pz)) P.z = pz;
+      else if (!G.Pond.blocked(px, pz)) { P.x = px; P.z = pz; }
+    }
     const ground = P.groundAt(P.x, P.z) + P.eye;
     if (P.vy !== 0 || P.y > ground + 0.08) {
       P.vy -= 13 * dt;

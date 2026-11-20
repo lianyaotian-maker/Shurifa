@@ -77,8 +77,27 @@
     }
     return h;
   }
-  function height(x, z) {
+  function baseHeight(x, z) {
     return rawHeight(x, z) * G.smooth(1.5, 11, rectDist(x, z, HOUSE));
+  }
+  // 池塘：一个椭圆形的浅水洼，岸边缓缓下沉
+  const POND = { x: 17, z: 5, a: 6.2, b: 4.6, waterY: 0 };
+  const pondD = (x, z) => Math.hypot((x - POND.x) / POND.a, (z - POND.z) / POND.b);
+  (function () {
+    let lo = 1e9;
+    for (let i = 0; i < 64; i++) {
+      const t = (i / 64) * Math.PI * 2;
+      lo = Math.min(lo, baseHeight(POND.x + Math.cos(t) * POND.a * 1.05, POND.z + Math.sin(t) * POND.b * 1.05));
+    }
+    POND.waterY = lo - 0.14;
+  })();
+  function height(x, z) {
+    const h = baseHeight(x, z);
+    const d = pondD(x, z);
+    if (d > 1.45) return h;
+    const k = Math.max(0, 1 - d);
+    const bed = POND.waterY + 0.22 * (d - 1) - 0.75 * Math.sqrt(k) * (1 - 0.2 * k);
+    return G.lerp(Math.min(bed, h), h, G.smooth(0.92, 1.42, d));
   }
 
   // 树冠遮挡体（用于阴影）
@@ -196,6 +215,7 @@
         m = Math.max(m, 1 - G.smooth(0.05, 0.45, rectDist(x, z, HOUSE)));
         m = Math.max(m, 1 - G.smooth(0.0, 0.3, rectDist(x, z, PORCH)));
         m = Math.max(m, 1 - G.smooth(0.0, 0.25, rectDist(x, z, CHIMNEY)));
+        m = Math.max(m, 1 - G.smooth(1.0, 1.12, pondD(x, z)));
         for (const b of BARE) m = Math.max(m, (1 - G.smooth(b[2] * 0.55, b[2], Math.hypot(x - b[0], z - b[1]))) * b[3]);
         for (const t of TREES) m = Math.max(m, 1 - G.smooth(0.35 * t.s, 0.8 * t.s, Math.hypot(x - t.x, z - t.z)));
         mask[idx] = m;
@@ -226,5 +246,5 @@
     return tex;
   }
 
-  G.Field = { HALF, N, HOUSE, PORCH, TREES, SPAWN, PATH, height, hAt, shadowAt, pathDist, rectDist, build };
+  G.Field = { HALF, N, HOUSE, PORCH, TREES, SPAWN, PATH, POND, pondD, height, hAt, shadowAt, pathDist, rectDist, build };
 })();

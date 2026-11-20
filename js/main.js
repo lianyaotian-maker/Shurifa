@@ -81,6 +81,7 @@
   G.Cat.build(scene);
   G.Life.build(scene);
   G.Night.build(scene, camera);
+  G.Pond.build(scene);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -377,7 +378,7 @@
   G.Player.onStep = (land) => {
     const P = G.Player, pr = G.Field.PORCH;
     let s;
-    if ((Math.abs(P.x) < 3.6 && Math.abs(P.z) < 2.8) || (P.x > pr.x0 && P.x < pr.x1 && P.z > 2.8 && P.z < 4.45)) s = 'wood';
+    if ((Math.abs(P.x) < 3.6 && Math.abs(P.z) < 2.8) || (P.x > pr.x0 && P.x < pr.x1 && P.z > 2.8 && P.z < 4.45) || G.Pond.onDeck(P.x, P.z)) s = 'wood';
     else if (U.uSnow.value > 0.45) s = 'snow';
     else if (G.Field.pathDist(P.x, P.z) < 0.85) s = 'gravel';
     else if (lastS && lastS.leaves > 0.45) s = 'leaves';
@@ -552,6 +553,7 @@
     if (!started) G.Player.yaw += Math.sin(clock * 0.25) * 0.00025; // 开场时镜头轻轻晃动
     G.Player.update(dt);
     G.Night.update(dt, clock, camera, G.Player);
+    G.Pond.update(dt, clock, S, G.Player);
     G.Nature.update(camera);
     G.House.update(dt, G.Player, U.uSnow.value, G.Cat);
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);
