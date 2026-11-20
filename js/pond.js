@@ -310,14 +310,6 @@ void main(){
         if (d < 25) G.Audio.sfx('splash', G.clamp(1.1 - d / 18, 0.12, 0.9));
       }
     }
-    // 夏天的夜里，池塘边会有青蛙叫
-    PD.frogT = (PD.frogT || 3) - dt;
-    if (PD.frogT <= 0) {
-      PD.frogT = 1.2 + Math.random() * 3.5;
-      const d = Math.hypot(P.x - Pn.x, P.z - Pn.z);
-      const want = open && S.flw > 0.15 && S.snow < 0.1 && nk > 0.5 && d < 30;
-      if (want) G.Audio.sfx('frog', G.clamp(1.2 - d / 25, 0.12, 0.8));
-    }
   };
 
   G.Pond = PD;
