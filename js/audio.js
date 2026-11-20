@@ -434,6 +434,10 @@
       const b = await get(man.amb[k].file);
       if (b) S.amb[k] = { buf: b, loop: man.amb[k].loop };
     }
+    if (man.bowl) {
+      const b = await get(man.bowl.file);
+      if (b) S.bowl = { buf: b, seg: man.bowl.seg };
+    }
     A.loading = false;
   };
   A.songURL = (f) => 'sounds/' + f + (VER ? '?v=' + VER : '');
@@ -489,7 +493,7 @@
     // 录音还没加载好时不出声，免得出现另一种声音
     return 0;
   };
-  /* ---------- 环境声：风、草原、鸟叫、虫鸣（有录音用录音，没有就合成风声和虫鸣） ---------- */
+  /* ---------- 环境声：风、草原、鸟叫、虫鸣、月亮上的风铃（有录音用录音，没有就合成风声和虫鸣） ---------- */
   const amb = { layers: {} };
   function makeCrickets(ctx) {
     const sr = ctx.sampleRate, len = sr * 4, buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
@@ -553,7 +557,7 @@
     amb.lp.frequency.setTargetAtTime(o.inside ? 850 : 18000, t, 0.5);
     amb.out.gain.setTargetAtTime(o.inside ? 0.5 : 1, t, 0.5);
     const gust = 0.55 + 0.3 * Math.sin(t * 0.37) + 0.15 * Math.sin(t * 0.13 + 1.3);
-    const want = { wind: o.wind * 0.42 * gust, meadow: o.meadow * 0.32, birds: o.birds * 0.3, crickets: o.crickets * 0.26 };
+    const want = { wind: o.wind * 0.42 * gust, meadow: o.meadow * 0.32, birds: o.birds * 0.3, crickets: o.crickets * 0.26, moon: (o.moon || 0) * 0.55 };
     for (const name in want) {
       let L = amb.layers[name];
       // 录音加载好以后，把合成的那层换成录音
@@ -678,12 +682,34 @@
       filt = ['lowpass', 2600];
     }
     if (!st && surface === 'tall' && real.grass) st = real.grass;
+    if (!st && surface === 'stone' && real.wood) {
+      // 月宫的石台阶：木头脚步声升调、滤掉低频，变成清脆的鞋跟声
+      st = real.wood;
+      k = 'wood';
+      rate = rnd(1.28, 1.42);
+      filt = ['highpass', 520];
+    }
+    if (!st && surface === 'dust' && real.gravel) {
+      // 月壤：碎石声降一点调、滤掉高频，软软的沙沙声
+      st = real.gravel;
+      k = 'gravel';
+      rate = rnd(0.8, 0.9);
+      filt = ['lowpass', 1500];
+    }
     if (!st) {
-      st = fake[surface] || fake.grass;
+      st = fake[surface] || fake[{ stone: 'wood', dust: 'snow' }[surface]] || fake.grass;
       k = 'f' + surface;
     }
     const seg = pick(st.hits, k);
     if (seg) playSeg(st.buf, seg, (vol === undefined ? 1 : vol) * rnd(0.75, 1) * (st.synth ? 0.55 : 1), rate, 0.06, filt);
+  };
+  // 满月颂钵：有录音用录音，没有就用几个略微错开的泛音合成（会慢慢“嗡嗡”地起伏）
+  A.bowl = function (vol) {
+    if (!ready()) return;
+    vol = vol === undefined ? 0.4 : vol;
+    const B = A.samples && A.samples.bowl;
+    if (B) return playSeg(B.buf, B.seg, vol, rnd(0.99, 1.01), 0.35);
+    partials(A.bus, now(), 346.3, vol * 0.22, [[1, 1, 7], [1.004, 0.6, 6.5], [2.71, 0.45, 4], [2.716, 0.3, 3.6], [5.05, 0.16, 2.2], [8.1, 0.05, 1.2]], 0.45);
   };
   A.chime = function (count, vol) {
     if (!ready()) return;
@@ -856,7 +882,18 @@
         tone(b, t + 0.11, 1900, 2600, 0.06, 0.04 * vol);
         A.boxInto(b, t + 0.02, 2093, 0.05 * vol);
         break;
-      case 'portal': { // 穿过月光：一串缓缓上行的铃声加一阵轻柔的风
+      case 'pound': // 玉兔捣药：木杵落进石臼“笃”的一声（都是中高频，没有低音）
+        tone(b, t, 560, 430, 0.06, 0.09 * vol, 'triangle');
+        tone(b, t, 1250, 1100, 0.03, 0.035 * vol);
+        burst(b, t, 0.035, 0.07 * vol, 'bandpass', 1800, 900, 1.4, 0.15, 0.001);
+        break;
+      case 'meteor': // 流星划过：很轻的一阵“咻”，尾巴上两声细细的铃
+        burst(b, t, 0.9, 0.035 * vol, 'bandpass', 5200, 2200, 1.2, 0.5, 0.25);
+        A.bellInto(b, t + 0.45, 2637.02, 0.035 * vol, 1.6);
+        A.bellInto(b, t + 0.62, 3520, 0.025 * vol, 1.4);
+        break;
+      case 'portal': { // 穿过月光：颂钵“嗡”的一声，一串缓缓上行的铃声，再加一阵轻柔的风
+        A.bowl(0.5 * vol);
         const seq = [784, 988, 1175, 1568, 1976, 2349, 3136];
         seq.forEach((f, i) => A.bellInto(b, t + i * 0.16, f, 0.1 * vol, 2.6));
         burst(b, t, 1.6, 0.05 * vol, 'bandpass', 800, 3200, 0.6, 0.6, 0.6);

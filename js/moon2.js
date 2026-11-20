@@ -1,5 +1,5 @@
 /* 草原小屋 · 月中世界的建筑和小物件：
-   八角广寒亭、石板路和石灯、月光花、碎石、桂花树和红绸、留言板、捣药的玉兔、新月秋千、月洞门和竹子 */
+   八角亭、石板路和石灯、月光花、碎石、桂花树和红绸、留言板、捣药的玉兔、新月秋千、月洞门和竹子 */
 (function () {
   'use strict';
   const M = G.Moon;
@@ -307,7 +307,6 @@
       }
     }), true);
     T.cres.repeat.set(0.35, 0.35);
-    T.plaque = plaqueTex('广寒宫', 512, 192, '#1a2a56', '#f0cd6a', '#d9b25a');
     T.boardSign = plaqueTex('留言板', 384, 128, '#4b2c1f', '#f6dc96', '#c8a050');
     T.gateSign = plaqueTex('回草原', 384, 128, '#ece8e0', '#2e3a4a', '#7a7f8a');
     return T;
@@ -454,7 +453,7 @@
     return s;
   }
 
-  /* ================= 八角广寒亭 ================= */
+  /* ================= 八角亭 ================= */
   const H0 = M.PLAT_H;
   const RE = 4.45, RB = H0 + 2.67, RH = 2.1;
   // 屋面上的点：k 第几面，u 沿着檐口，v 从宝顶(0)到檐口(1)
@@ -554,7 +553,6 @@
       A.add(braceG, at(c1[0] - ex * 0.1, H0 + 2.36, c1[1] - ez * 0.1, 0, bry + PI), 'gold', COL.gold);
       // 斗拱
       for (let i = 0; i < 5; i++) {
-        if (k === 1 && i > 0 && i < 4) continue; // 正面让给匾额
         const t = (i + 0.5) / 5 - 0.5, tx = -sz * t * EL, tz = cx * t * EL;
         A.add(box(0.13, 0.12, 0.34), at(cx * (BAp + 0.08) + tx, H0 + 2.78, sz * (BAp + 0.08) + tz, 0, ry), 'paint', COL.teal);
         A.add(box(0.17, 0.05, 0.2), at(cx * (BAp + 0.2) + tx, H0 + 2.865, sz * (BAp + 0.2) + tz, 0, ry), 'gold', COL.gold);
@@ -622,12 +620,6 @@
     // 宝顶
     A.add(lathe([[0, 0], [0.32, 0], [0.35, 0.06], [0.2, 0.12], [0.28, 0.2], [0.12, 0.3], [0.21, 0.42], [0.22, 0.5], [0.15, 0.6], [0.06, 0.66], [0.13, 0.76], [0.12, 0.85], [0.05, 0.93], [0.018, 1.25], [0, 1.3]], 18), at(0, RB + RH - 0.06, 0), 'gold', COL.gold);
     glowAt(0xffe2a0, 1.6, 0.35, C.x, RB + RH + 0.5, C.z);
-    /* 匾额「广寒宫」 */
-    const pq = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.48), G.lambert({ map: tex.plaque, emissive: 0xffffff, emissiveMap: tex.plaque, emissiveIntensity: 0.4 }));
-    pq.position.set(C.x, H0 + 2.62, C.z + BAp + 0.215);
-    pq.rotation.x = 0.14;
-    M.group.add(pq);
-    A.add(box(1.44, 0.62, 0.05), at(0, H0 + 2.62, BAp + 0.17, 0.14), 'gold', COL.gold);
     /* 八角挂的宫灯 */
     const lanG = lathe([[0, -0.27], [0.1, -0.26], [0.18, -0.19], [0.215, -0.08], [0.222, 0], [0.215, 0.08], [0.18, 0.19], [0.1, 0.26], [0, 0.27]], 14);
     const lcapG = cyl(0.1, 0.12, 0.05, 14), tasG = lathe([[0, 0], [0.022, -0.02], [0.045, -0.24], [0, -0.25]], 8);
@@ -1322,15 +1314,21 @@
     const jump = R.target ? Math.abs(Math.sin(R.t)) * 0.28 : Math.sin(R.hop * Math.PI) * 0.45;
     R.g.position.set(R.x, M.groundAt(R.x, R.z) + jump, R.z);
     R.g.rotation.y = R.heading;
-    const ps = Math.sin(t * 4);
-    R.pestle.rotation.x = pound ? -0.6 + Math.abs(ps) * 0.9 : -0.2;
+    const ps = Math.sin(t * 4), pc = Math.cos(t * 4);
+    R.pestle.rotation.x = pound ? -0.6 + Math.pow(Math.abs(ps), 0.7) * 0.9 : -0.2;
     R.head.rotation.x = pound ? 0.15 + Math.abs(ps) * 0.08 : -0.1;
     R.head.rotation.z = R.happy > 0 ? Math.sin(t * 10) * 0.15 : 0;
     R.ears[0].rotation.x = -0.18 + Math.max(0, Math.sin(t * 1.3)) * 0.12 * Math.max(0, Math.sin(t * 7));
     R.ears[1].rotation.x = -0.18 + Math.max(0, Math.sin(t * 1.1 + 2)) * 0.12 * Math.max(0, Math.sin(t * 7 + 1));
-    // 每捣一下，臼里冒一点小亮光（离得近才冒）
-    if (pound && R.prevS > 0 !== ps > 0 && Math.hypot(P.x - R.x, P.z - R.z) < 10 && Math.random() < 0.6) G.Things.emit('star', R.mortar, 1, { spread: 0.12, velRand: 0.25, vel: v3(0, 0.45, 0), size: 0.7 });
-    R.prevS = ps;
+    // 杵落到臼底的那一下：“笃”一声，臼里冒一点小亮光（离得近才有）
+    if (pound && R.prevS > 0 !== pc > 0) {
+      const d = Math.hypot(P.x - R.x, P.z - R.z);
+      if (d < 11) {
+        G.Audio.sfx('pound', G.clamp(1.25 - d / 9, 0.08, 1));
+        if (Math.random() < 0.6) G.Things.emit('star', R.mortar, 1, { spread: 0.12, velRand: 0.25, vel: v3(0, 0.45, 0), size: 0.7 });
+      }
+    }
+    R.prevS = pc;
     // 新月秋千
     const sw = M.swing;
     let acc = -(9.8 / 6 / sw.L) * Math.sin(sw.th) * 6 - (sw.seated ? 0.03 : 0.12) * sw.om;

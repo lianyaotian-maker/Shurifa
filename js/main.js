@@ -434,6 +434,7 @@
       G.Player.jx = G.Player.jy = 0;
       bdSend.disabled = false;
       requestAnimationFrame(() => bdEl.classList.add('on'));
+      G.Audio.sfx('paper', 0.6);
       bdLoad();
     },
     async musicbox() {
@@ -467,6 +468,11 @@
   G.Player.onStep = (land) => {
     const P = G.Player, pr = G.Field.PORCH;
     let s;
+    if (G.Moon.on) {
+      s = G.Moon.surfaceAt(P.x, P.z);
+      G.Audio.step(s, land ? 0.9 : s === 'stone' ? 0.7 : 0.5);
+      return;
+    }
     if ((Math.abs(P.x) < 3.6 && Math.abs(P.z) < 2.8) || (P.x > pr.x0 && P.x < pr.x1 && P.z > 2.8 && P.z < 4.45)) s = 'wood';
     else if (U.uSnow.value > 0.45) s = 'snow';
     else if (G.Field.pathDist(P.x, P.z) < 0.85) s = 'gravel';
@@ -658,12 +664,13 @@
     if (ambT <= 0) {
       ambT = 0.25;
       const snow = U.uSnow.value;
-      if (G.Moon.on) G.Audio.ambient({ wind: 0.12, meadow: 0, birds: 0, crickets: 0, inside: false });
+      if (G.Moon.on) G.Audio.ambient(G.Moon.ambient(G.Player));
       else G.Audio.ambient({
         wind: G.clamp(0.45 + 0.45 * snow + 0.25 * S.leaves, 0, 1) * (1 - 0.45 * G.Night.k),
         meadow: (1 - 0.7 * snow) * (1 - 0.3 * G.Night.k),
         birds: G.clamp((S.flw * 1.4 + S.petals * 0.4) * (1 - snow), 0, 1) * (1 - G.Night.k),
         crickets: G.clamp(Math.max(S.ffly, 0.85 * G.Night.k) * (1 - snow), 0, 1),
+        moon: G.Moon.callAmt(G.Player),
         inside: G.Player.inHouse(G.Player.x, G.Player.z)
       });
     }

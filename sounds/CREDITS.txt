@@ -29,6 +29,13 @@ Ambience
   The trimmed loops sounds/amb_wind.mp3 and sounds/amb_crickets.mp3 are
   adaptations of these recordings and are shared under the same license.
 
+Moon (月中世界)
+- "Windglockenspiel.Koshi.ogg" by Membeth — CC0
+  https://commons.wikimedia.org/wiki/File:Windglockenspiel.Koshi.ogg
+  (sounds/amb_moon.mp3: trimmed, denoised, gently compressed)
+- Moon footsteps reuse the wooden-bridge and gravel recordings above,
+  re-pitched and filtered (stone and lunar dust).
+
 Fonts
 - Great Vibes (fonts/GreatVibes.woff2) — SIL Open Font License 1.1, see fonts/GreatVibes-OFL.txt
 
@@ -38,5 +45,5 @@ CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
 Music box songs (song1–4.mp3: 安静, 彩虹, 稻香, 讴歌) were provided by the page's
 owner.
 
-Everything else (chimes, music box, other small effects) is synthesized in
-the browser.
+Everything else (chimes, music box, the rabbit's pestle, shooting stars and
+other small effects) is synthesized in the browser.

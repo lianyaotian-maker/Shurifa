@@ -12,6 +12,7 @@
   // 月面上的光从来时方向的右后上方照过来，正面看得清亭子
   M.LIGHT = v3(0.5, 0.6, 0.62).normalize();
   M.FOG = new THREE.Color(0.1, 0.11, 0.25);
+  M.met = { uMetS: { value: v3(0, 1, 0) }, uMetD: { value: v3(1, 0, 0) }, uMetT: { value: -100 } };
 
   /* ---------- 月面高度 ---------- */
   const CRATERS = [[-18, 14, 5.5, 1.2], [20, 12, 7, 1.5], [-24, -20, 8, 1.6], [26, -22, 4.5, 1.0], [7, 36, 6, 1.3], [-36, 2, 5, 1.1], [34, 30, 4, 0.9], [-30, 30, 6.5, 1.4], [38, -2, 5, 1.0], [-6, -38, 7, 1.4], [16, -40, 4, 0.8]];
@@ -67,9 +68,33 @@
     return rawH(lx, lz);
   };
 
-  /* ---------- 天空：深蓝夜空、几层星星、银河、流星、一颗地球 ---------- */
+  /* ---------- 声音用：脚下的地面、每处该听到什么 ---------- */
+  // 亭子台基、台阶、石板路、门槛是石头，其他地方是软软的月壤
+  M.surfaceAt = function (x, z) {
+    const lx = x - C.x, lz = z - C.z;
+    if (oct(lx, lz) < PLINTH + 0.05 || (Math.abs(lx) < 1.1 && Math.abs(lz) < 4.2)) return 'stone';
+    if (Math.abs(lx) < 0.65 && ((lz > 4 && lz < 20.8) || (lz < -4 && lz > -12.6))) return 'stone';
+    if (Math.abs(lz + 13) < 0.5 && Math.abs(lx) < 1.2) return 'stone';
+    return 'dust';
+  };
+  // 月亮上：风铃声离亭子越近越清楚；走近月洞门，能听到门那边草原的鸟叫和风
+  M.ambient = function (P) {
+    const lx = P.x - C.x, lz = P.z - C.z;
+    const portal = G.smooth(9, 1.5, Math.hypot(lx, lz + 13)) * (lz > -13.3 ? 1 : 0.5);
+    const pav = G.smooth(18, 3, Math.hypot(lx, lz));
+    return { wind: 0.06 + 0.3 * portal, meadow: 0, birds: 0.9 * portal, crickets: 0, moon: 0.3 + 0.7 * pav, inside: false };
+  };
+  // 草原的夜里：走近引路光柱，隐隐约约听到月亮上的风铃
+  M.callAmt = function (P) {
+    if (!M.door || M.on) return 0;
+    return G.smooth(0.55, 1, G.U.uNight.value) * G.smooth(26, 4, Math.hypot(P.x - M.door.x, P.z - M.door.y));
+  };
+
+  /* ---------- 天空：深蓝夜空、几层星星、银河、流星 ---------- */
   const SKY_FS = SH.COMMON + /* glsl */ `
-uniform vec3 uEarth;
+uniform vec3 uMetS;
+uniform vec3 uMetD;
+uniform float uMetT;
 varying vec3 vDir;
 float fbm4(vec2 p){ float s = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
 // 按纬度分带、每一带的格子数取整，星星在哪儿都是圆的，也没有接缝
@@ -116,54 +141,14 @@ void main(){
   // 三层星星：少量亮星、一般的星、银河里密密的小星
   vec3 st = starL(d, 30.0, 0.09, 0.075, 1.0) * 1.6 + starL(d, 80.0, 0.16, 0.13, 7.0) + starL(d, 150.0, 0.06 + 0.5 * w, 0.12, 13.0) * 0.6;
   col += st * sky;
-  // 偶尔一颗流星
-  float per = 9.0;
-  float k = floor(uTime / per);
-  float prog = (uTime - k * per) / 1.1;
-  vec3 S0 = normalize(vec3(cos(hash12(vec2(k, 1.3)) * 6.2832), 0.5 + hash12(vec2(k, 7.1)) * 0.9, sin(hash12(vec2(k, 1.3)) * 6.2832)));
-  vec3 T1 = normalize(cross(S0, vec3(0.0, 1.0, 0.0)));
-  vec3 B1 = cross(T1, S0);
-  vec3 Td = normalize(T1 * (hash12(vec2(k, 3.7)) > 0.5 ? 1.0 : -1.0) - B1 * 0.55);
-  vec3 Bn = cross(Td, S0);
-  vec2 q = vec2(dot(d - S0, Td), dot(d - S0, Bn));
+  // 流星：方向和出现的时间由脚本给（这样能配上声音）
+  float prog = (uTime - uMetT) / 1.1;
+  vec3 Bn = cross(uMetD, uMetS);
+  vec2 q = vec2(dot(d - uMetS, uMetD), dot(d - uMetS, Bn));
   float head = mix(-0.22, 0.22, prog);
   float along = clamp((q.x - head + 0.2) / 0.2, 0.0, 1.0) * step(q.x, head);
-  float met = smoothstep(0.003, 0.0, abs(q.y)) * along * along * sin(clamp(prog, 0.0, 1.0) * 3.1416) * step(prog, 1.0) * step(0.6, dot(d, S0));
+  float met = smoothstep(0.003, 0.0, abs(q.y)) * along * along * sin(clamp(prog, 0.0, 1.0) * 3.1416) * step(prog, 1.0) * step(0.6, dot(d, uMetS));
   col += vec3(0.85, 0.9, 1.0) * met * 1.6;
-  // 地球
-  vec3 E = normalize(uEarth);
-  float ce = dot(d, E);
-  vec3 rt = normalize(cross(E, vec3(0.0, 1.0, 0.0)));
-  vec3 eu = cross(rt, E);
-  vec2 eq = vec2(dot(d, rt), dot(d, eu)) / 0.105;
-  float r = length(eq);
-  if (ce > 0.0) {
-    float o = max(r - 1.0, 0.0);
-    col += vec3(0.3, 0.5, 1.0) * (exp(-o * 9.0) * 0.32 + exp(-o * 1.6) * 0.05) * step(0.985, r);
-    if (r < 1.0) {
-      float disc = 1.0 - smoothstep(0.985, 1.0, r);
-      vec3 nn = vec3(eq, sqrt(max(0.0, 1.0 - r * r)));
-      float ang = uTime * 0.012;
-      vec3 m = vec3(nn.x * cos(ang) - nn.z * sin(ang), nn.y, nn.x * sin(ang) + nn.z * cos(ang));
-      float land = smoothstep(0.5, 0.56, fbm4(m.xy * 2.4 + m.z * 1.3 + 3.0));
-      float ice = smoothstep(0.82, 0.9, abs(m.y));
-      float cloud = smoothstep(0.52, 0.78, fbm4(m.yz * 3.0 + m.x * 2.0 + vec2(uTime * 0.004, 0.0)));
-      vec3 ocean = mix(vec3(0.03, 0.13, 0.38), vec3(0.08, 0.3, 0.62), nn.z);
-      vec3 grd = mix(vec3(0.2, 0.4, 0.2), vec3(0.62, 0.53, 0.34), smoothstep(0.38, 0.7, fbm4(m.xz * 5.0)));
-      vec3 surf = mix(ocean, grd, land);
-      surf = mix(surf, vec3(0.92, 0.95, 1.0), ice);
-      surf = mix(surf, vec3(0.97), cloud * 0.9);
-      vec3 Ld = normalize(vec3(0.82, 0.25, 0.5));
-      float nl = dot(nn, Ld);
-      float lit = smoothstep(-0.12, 0.35, nl);
-      vec3 ec = surf * (lit * 1.05 + 0.025);
-      ec += vec3(1.0, 0.92, 0.8) * pow(max(dot(nn, normalize(Ld + vec3(0.0, 0.0, 1.0))), 0.0), 40.0) * (1.0 - land) * (1.0 - cloud) * 0.6;
-      float city = step(0.84, hash12(floor(m.xy * 55.0 + m.z * 13.0))) * land * (1.0 - cloud);
-      ec += vec3(1.0, 0.72, 0.36) * city * (1.0 - smoothstep(-0.3, 0.02, nl)) * 0.75;
-      ec = mix(ec, vec3(0.45, 0.68, 1.0), pow(1.0 - nn.z, 2.5) * 0.7 * smoothstep(-0.3, 0.4, nl));
-      col = mix(col, ec, disc);
-    }
-  }
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -255,7 +240,7 @@ void main(){
     M.pools = [];
 
     /* 天空 */
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 48, 24), SH.mat(SH.SKY_VS, SKY_FS, { uEarth: { value: v3(0.2, 0.33, -0.92) } }, { side: THREE.BackSide, depthWrite: false }));
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 48, 24), SH.mat(SH.SKY_VS, SKY_FS, M.met, { side: THREE.BackSide, depthWrite: false }));
     sky.frustumCulled = false;
     sky.renderOrder = -100;
     g.add(sky);
@@ -451,11 +436,22 @@ void main(){
       P.x = C.x + (dx / d) * M.R;
       P.z = C.z + (dz / d) * M.R;
     }
-    // 偶尔一声很轻的风铃，月亮上很安静
-    M.chimeT = (M.chimeT || 6) - dt;
-    if (M.chimeT <= 0) {
-      M.chimeT = 10 + Math.random() * 12;
-      G.Audio.chime(2, 0.05);
+    // 流星：隔一会儿划过一颗；正好在眼前时配一声很轻的“咻——叮”
+    M.metNext = (M.metNext === undefined ? 4 : M.metNext) - dt;
+    if (M.metNext <= 0) {
+      M.metNext = 7 + Math.random() * 9;
+      const a = Math.random() * Math.PI * 2, S0 = M.met.uMetS.value.set(Math.cos(a), 0.5 + Math.random() * 0.9, Math.sin(a)).normalize();
+      const T1 = v3(0, 1, 0).cross(S0).negate().normalize(), B1 = T1.clone().cross(S0);
+      M.met.uMetD.value.copy(T1).multiplyScalar(Math.random() < 0.5 ? 1 : -1).addScaledVector(B1, -0.55).normalize();
+      M.met.uMetT.value = G.U.uTime.value;
+      const cp = Math.cos(P.pitch), look = v3(-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp);
+      if (look.dot(S0) > 0.72) G.Audio.sfx('meteor', 0.9);
+    }
+    // 很久才有一声颂钵，月亮上很安静
+    M.bowlT = (M.bowlT === undefined ? 14 : M.bowlT) - dt;
+    if (M.bowlT <= 0) {
+      M.bowlT = 35 + Math.random() * 25;
+      G.Audio.bowl(0.22);
     }
   };
 
