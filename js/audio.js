@@ -840,12 +840,10 @@
         seq.forEach((f, i) => A.bellInto(b, t + i * 0.11, f, 0.13 * vol, 2.2));
         break;
       }
-      case 'boom': // 远处的烟花
-        tone(b, t, 95, 42, 0.5, 0.22 * vol);
-        tone(b, t, 240, 110, 0.3, 0.1 * vol);
-        burst(b, t, 0.55, 0.14 * vol, 'lowpass', 500, 120, 0.7, 0.5);
-        burst(b, t, 0.28, 0.1 * vol, 'bandpass', 750, 280, 0.8, 0.5);
-        for (let i = 0; i < 10; i++) burst(b, t + 0.25 + Math.random() * 0.7, 0.03, 0.035 * vol, 'highpass', 3500, 0, 0.7, 0.3);
+      case 'boom': // 远处的烟花：柔和的“砰”，再加一点细碎的噼啪声（不用超低频，手机扬声器放不出来会变成电流声）
+        burst(b, t, 0.42, 0.11 * vol, 'bandpass', 520, 260, 0.9, 0.55, 0.008);
+        burst(b, t, 0.22, 0.05 * vol, 'lowpass', 1400, 500, 0.7, 0.4, 0.004);
+        for (let i = 0; i < 6; i++) burst(b, t + 0.35 + Math.random() * 0.8, 0.05, 0.012 * vol, 'bandpass', rnd(2400, 4200), 0, 2, 0.4, 0.004);
         break;
       case 'heart': // 冒爱心时很轻的一声
         A.boxInto(b, t, 1567.98, 0.06 * vol);

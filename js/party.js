@@ -362,7 +362,9 @@ void main(){
         if (age >= 1.0 && age < 1.4 && P.fwLast[k] !== id) {
           P.fwLast[k] = id;
           const startT = k * 0.68 + 0.5 + c * 4.6;
-          if (startT < 26 || (c + k) % 3 === 0) {
+          // 声音最多每 1.6 秒响一次，不会连成一片
+          if ((startT < 26 || (c + k) % 3 === 0) && G.Things.time - (P.lastBoom || -9) > 1.6) {
+            P.lastBoom = G.Things.time;
             const inside = G.Player.inHouse(G.Player.x, G.Player.z);
             setTimeout(() => G.Audio.sfx('boom', inside ? 0.35 : 0.8), 260);
           }
