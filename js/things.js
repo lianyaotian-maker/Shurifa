@@ -149,6 +149,8 @@
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.star, transparent: true, depthWrite: false, fog: false, opacity: 0, blending: THREE.AdditiveBlending, color: 0xfff0cc }));
       s.renderOrder = 12;
       s.scale.setScalar(0.24);
+      s.userData.keep = true;
+      s.layers.enable(1);
       T.scene.add(s);
       e.sprite = s;
   }
@@ -159,6 +161,8 @@
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: TEX.heart, transparent: true, depthWrite: false, fog: false, opacity: 0 }));
       s.visible = false;
       s.renderOrder = 13;
+      s.userData.keep = true;
+      s.layers.enable(1);
       scene.add(s);
       T.parts.push({ s, v: new THREE.Vector3(), age: 1, life: 0, size: 0.1, grav: 0, wind: 0, ph: 0 });
     }

@@ -184,6 +184,7 @@
     root.add(tag);
     part.tag = tag;
     part.root = root;
+    C.root = root;
     part.body = body;
     part.head = head;
     scene.add(root);
@@ -247,6 +248,13 @@
 
   function decide() {
     // 夜里更爱在门廊或屋里打盹
+    // 在月亮上：就在附近（玉兔旁边、亭子边）转转
+    if (C.spots) {
+      const s = C.spots[Math.floor(Math.random() * C.spots.length)];
+      if (Math.hypot(s[0] - C.x, s[1] - C.z) > 1) goTo(s[0], s[1], Math.random() < 0.4 ? 'nap' : 'sit', 1.1);
+      else settle('sit', rnd(6, 12));
+      return;
+    }
     if (G.Night && G.Night.k > 0.5 && Math.random() < 0.75) {
       const cozy = [[0.95, 3.45], [-0.5, 3.62], [0.25, 1.25], [0.9, -0.15]];
       const s = cozy[Math.floor(Math.random() * cozy.length)];
@@ -500,7 +508,7 @@
     C.eyeMat.emissive.setRGB(0.04 + 0.5 * nk, 0.03 + 0.62 * nk, 0.02 + 0.2 * nk);
     // 屋里灯光是暖的；在屋外的阴影里毛色会暗一点、偏冷一点，和周围的草地一致
     const indoor = inHouse(C.x, C.z);
-    const sh = indoor ? 0.35 : G.Field.shadowAt(C.x, C.z);
+    const sh = indoor ? 0.35 : G.Moon && G.Moon.on ? 0 : G.Field.shadowAt(C.x, C.z);
     C.shade = (C.shade === undefined ? sh : C.shade + (sh - C.shade) * Math.min(1, dt * 5));
     const k2 = C.shade, warm = indoor ? 0.34 : 0.16;
     for (const m of C.mats) {

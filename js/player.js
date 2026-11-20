@@ -13,12 +13,11 @@
 
   P.inHouse = (x, z) => x > -3.45 && x < 3.45 && z > -2.65 && z < 2.65;
   P.groundAt = function (x, z) {
+    if (G.Moon && G.Moon.on) return G.Moon.groundAt(x, z);
     if (x > -3.6 && x < 3.6 && z > -2.8 && z < 2.8) return FY();
     const pr = G.Field.PORCH;
     if (x > pr.x0 + 0.05 && x < pr.x1 - 0.05 && z > 2.8 && z < 4.05) return 0.33;
     if (x > -0.85 && x < 0.85 && z >= 4.05 && z < 4.42) return 0.17;
-    const dk = G.Pond && G.Pond.deckAt(x, z);
-    if (dk !== null && dk !== undefined) return dk;
     return G.Field.height(x, z);
   };
 
@@ -183,7 +182,7 @@
         }
       }
     }
-    const rr = Math.hypot(P.x, P.z), lim = 66;
+    const rr = G.Moon && G.Moon.on ? 0 : Math.hypot(P.x, P.z), lim = 66;
     if (rr > lim) {
       P.x *= lim / rr;
       P.z *= lim / rr;
@@ -239,15 +238,9 @@
       if (P.moved > 0.6) P.noteMove();
     }
     collide();
-    // 池塘：不能走进水里（栈桥上可以），沿着岸边滑开
-    if (G.Pond && G.Pond.blocked(P.x, P.z)) {
-      if (!G.Pond.blocked(px, P.z)) P.x = px;
-      else if (!G.Pond.blocked(P.x, pz)) P.z = pz;
-      else if (!G.Pond.blocked(px, pz)) { P.x = px; P.z = pz; }
-    }
     const ground = P.groundAt(P.x, P.z) + P.eye;
     if (P.vy !== 0 || P.y > ground + 0.08) {
-      P.vy -= 13 * dt;
+      P.vy -= (G.Moon && G.Moon.on ? 3.2 : 13) * dt; // 月亮上重力很轻
       P.y += P.vy * dt;
       if (P.y <= ground) {
         if (P.vy < -2.5 && P.onStep) P.onStep(true); // 跳起后落地

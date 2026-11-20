@@ -81,7 +81,7 @@
   G.Cat.build(scene);
   G.Life.build(scene);
   G.Night.build(scene, camera);
-  G.Pond.build(scene);
+  G.Moon.build(scene, { hemi, sun, fill }, camera);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -346,7 +346,96 @@
   }
   mbEl.addEventListener('click', (e) => { if (e.target === mbEl || e.target.id === 'mbClose') closeMb(); });
   $('mbStop').addEventListener('click', () => { G.Audio.stopMusic(); G.Audio.sfx('tick', 0.6); });
+  // 屏幕上方淡入淡出的一句提示
+  let toastT = null;
+  function toast(text) {
+    const el = $('toast');
+    el.textContent = text;
+    el.classList.add('on');
+    clearTimeout(toastT);
+    toastT = setTimeout(() => el.classList.remove('on'), 5200);
+  }
+  // 月亮上的留言板
+  const bdEl = $('board'), bdList = $('bdList'), bdText = $('bdText'), bdName = $('bdName'), bdSend = $('bdSend'), bdState = $('bdState');
+  try { bdName.value = store.get('grass-house-name') || ''; } catch (e) { /* 忽略 */ }
+  function fmtDate(s) {
+    const d = new Date(s);
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  function bdRender(rows) {
+    bdList.innerHTML = '';
+    if (!rows.length) {
+      const p = document.createElement('p');
+      p.className = 'bd-empty';
+      p.textContent = '还没有人留言，写下第一句吧。';
+      bdList.appendChild(p);
+      return;
+    }
+    for (const r of rows) {
+      const it = document.createElement('div');
+      it.className = 'bd-note';
+      const h = document.createElement('div');
+      h.className = 'bd-meta';
+      h.textContent = (r.name || '无名的旅人') + ' · ' + fmtDate(r.created_at);
+      const b = document.createElement('p');
+      b.textContent = r.body;
+      it.append(h, b);
+      bdList.appendChild(it);
+    }
+  }
+  async function bdLoad() {
+    if (!G.Board.ready()) {
+      bdState.textContent = '留言板还在布置中，暂时不能留言';
+      bdSend.disabled = true;
+      bdRender([]);
+      bdList.firstChild.textContent = '留言板还没有连接好。';
+      return;
+    }
+    bdState.textContent = '正在取信…';
+    try {
+      bdRender(await G.Board.list());
+      bdState.textContent = '';
+    } catch (e) {
+      bdState.textContent = '暂时连不上留言板，过一会儿再试试';
+    }
+  }
+  let lastSend = 0;
+  bdSend.addEventListener('click', async () => {
+    const body = bdText.value.trim(), name = bdName.value.trim();
+    if (!body) { bdState.textContent = '先写点什么吧'; return; }
+    if (Date.now() - lastSend < 15000) { bdState.textContent = '慢一点，过几秒再写下一条'; return; }
+    bdSend.disabled = true;
+    bdState.textContent = '正在寄出…';
+    try {
+      await G.Board.send(name.slice(0, 20), body.slice(0, 300));
+      lastSend = Date.now();
+      store.set('grass-house-name', name);
+      bdText.value = '';
+      bdState.textContent = '已经挂在留言板上了';
+      G.Audio.sfx('paper');
+      await bdLoad();
+      bdState.textContent = '已经挂在留言板上了';
+    } catch (e) {
+      bdState.textContent = '没寄出去，检查一下网络再试试（写的内容还在）';
+    }
+    bdSend.disabled = false;
+  });
+  function closeBd() {
+    bdEl.classList.remove('on');
+    setTimeout(() => { if (!bdEl.classList.contains('on')) bdEl.hidden = true; }, 400);
+    G.Player.enabled = true;
+  }
+  bdEl.addEventListener('click', (e) => { if (e.target === bdEl || e.target.id === 'bdClose') closeBd(); });
   G.UI = {
+    toast,
+    board() {
+      bdEl.hidden = false;
+      G.Player.enabled = false;
+      G.Player.jx = G.Player.jy = 0;
+      bdSend.disabled = false;
+      requestAnimationFrame(() => bdEl.classList.add('on'));
+      bdLoad();
+    },
     async musicbox() {
       G.Audio.init();
       if (!G.Audio.songs.length) await G.Audio.loadSongList();
@@ -378,7 +467,7 @@
   G.Player.onStep = (land) => {
     const P = G.Player, pr = G.Field.PORCH;
     let s;
-    if ((Math.abs(P.x) < 3.6 && Math.abs(P.z) < 2.8) || (P.x > pr.x0 && P.x < pr.x1 && P.z > 2.8 && P.z < 4.45) || G.Pond.onDeck(P.x, P.z)) s = 'wood';
+    if ((Math.abs(P.x) < 3.6 && Math.abs(P.z) < 2.8) || (P.x > pr.x0 && P.x < pr.x1 && P.z > 2.8 && P.z < 4.45)) s = 'wood';
     else if (U.uSnow.value > 0.45) s = 'snow';
     else if (G.Field.pathDist(P.x, P.z) < 0.85) s = 'gravel';
     else if (lastS && lastS.leaves > 0.45) s = 'leaves';
@@ -553,14 +642,14 @@
     if (!started) G.Player.yaw += Math.sin(clock * 0.25) * 0.00025; // 开场时镜头轻轻晃动
     G.Player.update(dt);
     G.Night.update(dt, clock, camera, G.Player);
-    G.Pond.update(dt, clock, S, G.Player);
+    G.Moon.update(dt, clock, G.Player);
     G.Nature.update(camera);
     G.House.update(dt, G.Player, U.uSnow.value, G.Cat);
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);
     updateBump(dt);
     G.FX.update(S, { mul: QUAL[quality].mul, bday: B.amt, hint: hint, lanternT: clock - B.lantern });
     G.Party.update(dt, clock, { amt: B.amt, pT: clock - B.start, fwT: clock - B.fw });
-    const ctx = { snow: U.uSnow.value, gH: S.gH, bday: B.amt, pT: clock - B.start };
+    const ctx = { snow: U.uSnow.value, gH: G.Moon.on ? 0 : S.gH, bday: B.amt, pT: clock - B.start };
     G.Things.update(dt, clock, ctx);
     G.Cat.update(dt, clock, ctx);
     G.Life.update(S, B.amt);
@@ -569,7 +658,8 @@
     if (ambT <= 0) {
       ambT = 0.25;
       const snow = U.uSnow.value;
-      G.Audio.ambient({
+      if (G.Moon.on) G.Audio.ambient({ wind: 0.12, meadow: 0, birds: 0, crickets: 0, inside: false });
+      else G.Audio.ambient({
         wind: G.clamp(0.45 + 0.45 * snow + 0.25 * S.leaves, 0, 1) * (1 - 0.45 * G.Night.k),
         meadow: (1 - 0.7 * snow) * (1 - 0.3 * G.Night.k),
         birds: G.clamp((S.flw * 1.4 + S.petals * 0.4) * (1 - snow), 0, 1) * (1 - G.Night.k),

@@ -851,11 +851,17 @@
       case 'paper': // 拆信
         for (let i = 0; i < 5; i++) burst(b, t + i * rnd(0.05, 0.11), rnd(0.06, 0.14), 0.07 * vol, 'bandpass', rnd(1500, 3400), 0, 0.9, 0.1, 0.01);
         break;
-      case 'splash': // 小鱼跃出、落回水面
-        burst(b, t, 0.35, 0.16 * vol, 'bandpass', 1400, 600, 0.8, 0.3, 0.005);
-        burst(b, t + 0.02, 0.18, 0.1 * vol, 'highpass', 3000, 0, 0.7, 0.2);
-        for (let i = 0; i < 6; i++) tone(b, t + 0.05 + Math.random() * 0.25, rnd(900, 1800), rnd(1800, 2600), 0.04, 0.03 * vol);
+      case 'squeak': // 玉兔被摸：两声很轻的“叽”（纯正弦，不会有杂音）
+        tone(b, t, 1700, 2300, 0.07, 0.05 * vol);
+        tone(b, t + 0.11, 1900, 2600, 0.06, 0.04 * vol);
+        A.boxInto(b, t + 0.02, 2093, 0.05 * vol);
         break;
+      case 'portal': { // 穿过月光：一串缓缓上行的铃声加一阵轻柔的风
+        const seq = [784, 988, 1175, 1568, 1976, 2349, 3136];
+        seq.forEach((f, i) => A.bellInto(b, t + i * 0.16, f, 0.1 * vol, 2.6));
+        burst(b, t, 1.6, 0.05 * vol, 'bandpass', 800, 3200, 0.6, 0.6, 0.6);
+        break;
+      }
       case 'jingle': // 鸡柳项圈上的小铃铛
         A.bellInto(b, t, rnd(2900, 3300), 0.03 * vol, 0.35);
         A.bellInto(b, t + 0.05, rnd(3300, 3700), 0.02 * vol, 0.3);

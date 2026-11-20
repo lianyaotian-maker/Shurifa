@@ -60,6 +60,19 @@
     </div>
   </div>
 </div>
+<div id="board" hidden role="dialog" aria-label="留言板">
+  <div class="card">
+    <div class="bd-head"><b>月亮上的留言板</b><button id="bdClose" aria-label="收起留言板">收起</button></div>
+    <div id="bdList"></div>
+    <div class="bd-form">
+      <input id="bdName" maxlength="20" placeholder="署名（可以不写）" autocomplete="off">
+      <textarea id="bdText" maxlength="300" rows="3" placeholder="想说点什么？写下来挂在月亮上"></textarea>
+      <div class="bd-foot"><span id="bdState" aria-live="polite"></span><button id="bdSend">挂上去</button></div>
+    </div>
+  </div>
+</div>
+<div id="toast" aria-live="polite"></div>
+<div id="moonfade" aria-hidden="true"></div>
 <div id="letter" hidden role="dialog" aria-label="一封信">
   <div class="paper">
     <p>I hope this isn’t just a play</p>
@@ -85,6 +98,7 @@
 
 <script src="js/three.min.js"></script>
 <script src="js/core.js"></script>
+<script src="js/config.js"></script>
 <script src="js/season.js"></script>
 <script src="js/field.js"></script>
 <script src="js/shaders.js"></script>
@@ -101,7 +115,8 @@
 <script src="js/cat.js"></script>
 <script src="js/life.js"></script>
 <script src="js/night.js"></script>
-<script src="js/pond.js"></script>
+<script src="js/moon.js"></script>
+<script src="js/board.js"></script>
 <script src="js/player.js"></script>
 <script src="js/main.js"></script>
 </body>
