@@ -58,6 +58,10 @@ void main(){
   vec3 col = mix(body, sky, 0.22 + 0.7 * fres);
   // 太阳（夜里是月亮）在水面上的一道亮光
   col += uSunColor * pow(max(sd, 0.0), 400.0) * 3.0 + uSunColor * pow(max(sd, 0.0), 40.0) * 0.18;
+  // 夜里水面倒映出大月亮（被波纹打碎）
+  float mw = 1.0 - smoothstep(0.0105, 0.0125, 1.0 - sd);
+  col = mix(col, vec3(1.0, 0.94, 0.8), mw * uNight * 0.6);
+  col += vec3(1.0, 0.92, 0.78) * pow(max(sd, 0.0), 30.0) * 0.25 * uNight;
   col += vec3(1.0) * smoothstep(0.9, 1.0, d) * 0.06; // 岸边一点点浅色
   col += vec3(1.0, 0.7, 0.38) * lanternAt(vWP) * 0.4;
   // 冬天结冰

@@ -274,6 +274,26 @@ void main(){
       col += vec3(0.85, 0.88, 1.0) * step(0.93 - 0.05 * band, h2) * smoothstep(0.25, 0.0, d2) * sv * uNight * 0.35 * (0.6 + 0.4 * sin(uTime * 2.0 + h2 * 40.0));
     }
   }
+  // 夜里的大月亮：低低挂在天边，温润的米黄色，一圈柔和的大光晕，云会从前面飘过
+  if (uNight > 0.01) {
+    vec3 m = uSunDir;
+    float cm = dot(d, m);
+    if (cm > 0.0) {
+      vec3 rt = normalize(cross(m, vec3(0.0, 1.0, 0.0)));
+      vec3 upv = cross(rt, m);
+      vec2 q = vec2(dot(d, rt), dot(d, upv)) / 0.15;
+      float rr = length(q);
+      float disc = 1.0 - smoothstep(0.975, 1.0, rr);
+      float mar = fbm(q * 1.5 + vec2(4.0, 1.7));
+      vec3 face = vec3(1.0, 0.95, 0.83) * (1.03 - 0.2 * smoothstep(0.42, 0.72, mar) - 0.06 * vnoise(q * 6.0 + 1.3));
+      face *= 0.9 + 0.14 * sqrt(max(0.0, 1.0 - rr * rr));
+      face += vec3(1.0, 0.88, 0.66) * smoothstep(0.78, 1.0, rr) * 0.1;
+      float o = max(rr - 1.0, 0.0);
+      vec3 halo = vec3(0.98, 0.9, 0.78) * exp(-o * 3.0) * 0.32 + vec3(0.7, 0.72, 0.95) * exp(-o * 0.55) * 0.16;
+      col += halo * (1.0 - disc) * uNight * (1.0 - dens * 0.4);
+      col = mix(col, face * 1.18, disc * uNight * (1.0 - dens * 0.7));
+    }
+  }
   gl_FragColor = vec4(col, 1.0);
 }
 `;
