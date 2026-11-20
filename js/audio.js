@@ -892,7 +892,7 @@
         A.bellInto(b, t + 0.62, 3520, 0.025 * vol, 1.4);
         break;
       case 'portal': { // 穿过月光：颂钵“嗡”的一声，一串缓缓上行的铃声，再加一阵轻柔的风
-        A.bowl(0.55 * vol);
+        A.bowl(0.42 * vol);
         const seq = [784, 988, 1175, 1568, 1976, 2349, 3136];
         seq.forEach((f, i) => A.bellInto(b, t + i * 0.16, f, 0.1 * vol, 2.6));
         burst(b, t, 1.6, 0.05 * vol, 'bandpass', 800, 3200, 0.6, 0.6, 0.6);

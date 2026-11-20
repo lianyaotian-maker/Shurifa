@@ -451,7 +451,7 @@ void main(){
     M.bowlT = (M.bowlT === undefined ? 16 : M.bowlT) - dt;
     if (M.bowlT <= 0) {
       M.bowlT = 40 + Math.random() * 25;
-      G.Audio.bowl(0.22);
+      G.Audio.bowl(0.17);
     }
   };
 
