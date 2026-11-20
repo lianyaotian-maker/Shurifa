@@ -6,7 +6,10 @@
   B.ready = () => !!(cfg().supabaseUrl && cfg().supabaseKey);
   function headers(extra) {
     const k = cfg().supabaseKey;
-    return Object.assign({ apikey: k, Authorization: 'Bearer ' + k, 'Content-Type': 'application/json' }, extra || {});
+    // 新版的 publishable key 只放在 apikey 里；旧版 anon key（JWT）还要同时放进 Authorization
+    const h = { apikey: k, 'Content-Type': 'application/json' };
+    if (/^eyJ/.test(k)) h.Authorization = 'Bearer ' + k;
+    return Object.assign(h, extra || {});
   }
   async function withTimeout(p, ms) {
     let t;
