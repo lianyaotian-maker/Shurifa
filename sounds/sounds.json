@@ -1,6 +1,6 @@
 {
  "meow": {
-  "file": "meows.mp3",
+  "file": "meow_kitten.mp3",
   "segs": {
    "short": [
     [
@@ -23,7 +23,7 @@
   }
  },
  "purr": {
-  "file": "purr.mp3",
+  "file": "purr_soft.mp3",
   "loop": [
    0.06,
    9.422
@@ -251,5 +251,6 @@
    "name": "讴歌",
    "file": "song4.mp3"
   }
- ]
+ ],
+ "v": "202611200609"
 }

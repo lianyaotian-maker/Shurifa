@@ -391,29 +391,52 @@
   function decode(ab) {
     return new Promise((res, rej) => A.ctx.decodeAudioData(ab, res, rej));
   }
+  let VER = '';
   async function loadBuf(f) {
-    const r = await fetch('sounds/' + f);
+    // 带上版本号，避免手机用到旧的缓存文件（文件内容和播放位置对不上会播错声音）
+    const r = await fetch('sounds/' + f + (VER ? '?v=' + VER : ''));
     if (!r.ok) throw new Error(f);
     return decode(await r.arrayBuffer());
   }
+  // 先加载猫叫和呼噜，让鸡柳马上能出声；其他声音随后陆续加载，某个文件出错不影响其他的
   A.loadSamples = async function () {
     if (A.samples || A.loading || !A.ctx) return;
     A.loading = true;
+    let man;
     try {
-      const man = await (await fetch('sounds/sounds.json')).json();
-      const S = { steps: {} };
-      if (man.meow) S.meow = { buf: await loadBuf(man.meow.file), segs: man.meow.segs };
-      if (man.purr) S.purr = { buf: await loadBuf(man.purr.file), loop: man.purr.loop };
-      for (const k in man.steps) S.steps[k] = { buf: await loadBuf(man.steps[k].file), hits: man.steps[k].hits };
-      S.amb = {};
-      for (const k in man.amb || {}) S.amb[k] = { buf: await loadBuf(man.amb[k].file), loop: man.amb[k].loop };
-      A.songs = man.songs || [];
-      A.samples = S;
+      man = await (await fetch('sounds/sounds.json?t=' + Date.now(), { cache: 'no-store' })).json();
     } catch (e) {
-      A.samples = null;
+      A.loading = false;
+      return;
+    }
+    VER = man.v || '';
+    A.songs = man.songs || [];
+    const S = (A.samples = { steps: {}, amb: {} });
+    const get = async (f) => {
+      for (let k = 0; k < 2; k++) {
+        try { return await loadBuf(f); } catch (e) { /* 再试一次 */ }
+      }
+      return null;
+    };
+    if (man.meow) {
+      const b = await get(man.meow.file);
+      if (b) S.meow = { buf: b, segs: man.meow.segs };
+    }
+    if (man.purr) {
+      const b = await get(man.purr.file);
+      if (b) S.purr = { buf: b, loop: man.purr.loop };
+    }
+    for (const k in man.steps || {}) {
+      const b = await get(man.steps[k].file);
+      if (b) S.steps[k] = { buf: b, hits: man.steps[k].hits };
+    }
+    for (const k in man.amb || {}) {
+      const b = await get(man.amb[k].file);
+      if (b) S.amb[k] = { buf: b, loop: man.amb[k].loop };
     }
     A.loading = false;
   };
+  A.songURL = (f) => 'sounds/' + f + (VER ? '?v=' + VER : '');
   function playSeg(buf, seg, vol, rate, wetAmt, filt) {
     const ctx = A.ctx, t = now(), s = ctx.createBufferSource();
     s.buffer = buf;
@@ -678,7 +701,8 @@
   let cur = null;
   A.loadSongList = async function () {
     try {
-      const man = await (await fetch('sounds/sounds.json')).json();
+      const man = await (await fetch('sounds/sounds.json?t=' + Date.now(), { cache: 'no-store' })).json();
+      VER = man.v || VER;
       A.songs = man.songs || [];
     } catch (e) {
       A.songs = [];
@@ -709,7 +733,7 @@
     const song = A.songs[idx];
     if (!song) return;
     const el = new Audio();
-    el.src = 'sounds/' + song.file;
+    el.src = A.songURL(song.file);
     el.loop = true;
     el.preload = 'auto';
     el.setAttribute('playsinline', '');
