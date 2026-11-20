@@ -80,6 +80,7 @@
   G.Things.build(scene);
   G.Cat.build(scene);
   G.Life.build(scene);
+  G.Night.build(scene, camera);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -165,6 +166,15 @@
   }
   stepper($('prev'), -1);
   stepper($('next'), 1);
+  // 日夜开关
+  const dnBtn = $('dn');
+  dnBtn.addEventListener('click', () => {
+    const night = G.Night.toggle() > 0.5;
+    dnBtn.classList.toggle('night', night);
+    dnBtn.setAttribute('aria-label', night ? '回到黄昏' : '进入夜晚');
+    dnBtn.setAttribute('aria-pressed', String(night));
+    G.Audio.sfx('heart', 0.6);
+  });
 
   /* ---------- 季节 → 画面 ---------- */
   const tmpC = new THREE.Color();
@@ -533,7 +543,7 @@
     const dd = SEA.diff(shownDay, targetDay);
     shownDay = Math.abs(dd) < 0.01 ? targetDay : shownDay + dd * Math.min(1, dt * 3.2);
     shownDay = ((shownDay % 365) + 365) % 365;
-    const S = SEA.sample(shownDay);
+    const S = G.Night.blend(SEA.sample(shownDay));
     lastS = S;
     applySeason(S);
     const hint = updateBirthday(dt);
@@ -541,6 +551,7 @@
 
     if (!started) G.Player.yaw += Math.sin(clock * 0.25) * 0.00025; // 开场时镜头轻轻晃动
     G.Player.update(dt);
+    G.Night.update(dt, clock, camera, G.Player);
     G.Nature.update(camera);
     G.House.update(dt, G.Player, U.uSnow.value, G.Cat);
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);
@@ -557,10 +568,10 @@
       ambT = 0.25;
       const snow = U.uSnow.value;
       G.Audio.ambient({
-        wind: G.clamp(0.45 + 0.45 * snow + 0.25 * S.leaves, 0, 1),
-        meadow: 1 - 0.7 * snow,
-        birds: G.clamp((S.flw * 1.4 + S.petals * 0.4) * (1 - snow), 0, 1),
-        crickets: G.clamp(S.ffly, 0, 1),
+        wind: G.clamp(0.45 + 0.45 * snow + 0.25 * S.leaves, 0, 1) * (1 - 0.45 * G.Night.k),
+        meadow: (1 - 0.7 * snow) * (1 - 0.3 * G.Night.k),
+        birds: G.clamp((S.flw * 1.4 + S.petals * 0.4) * (1 - snow), 0, 1) * (1 - G.Night.k),
+        crickets: G.clamp(Math.max(S.ffly, 0.85 * G.Night.k) * (1 - snow), 0, 1),
         inside: G.Player.inHouse(G.Player.x, G.Player.z)
       });
     }

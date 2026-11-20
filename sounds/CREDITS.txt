@@ -29,7 +29,15 @@ Ambience
   The trimmed loops sounds/amb_wind.mp3 and sounds/amb_crickets.mp3 are
   adaptations of these recordings and are shared under the same license.
 
+Images
+- Night moon (img/moon.png), cropped from "FullMoon2010.jpg" by Gregory H. Revera — CC BY-SA 3.0
+  https://commons.wikimedia.org/wiki/File:FullMoon2010.jpg
+
+Fonts
+- Great Vibes (fonts/GreatVibes.woff2) — SIL Open Font License 1.1, see fonts/GreatVibes-OFL.txt
+
 CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
 CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
 
 Music box songs (song1–4.mp3: 安静, 彩虹, 稻香, 讴歌) were provided by the page's

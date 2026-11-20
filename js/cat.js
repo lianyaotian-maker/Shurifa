@@ -29,6 +29,7 @@
   C.build = function (scene) {
     const fur = mat(0xf4a64e), dark = mat(0xd97c2c), cream = mat(0xfff1de), pink = mat(0xffa3b4), eye = mat(0x2a1c14, 0.05);
     C.mats = [fur, dark, cream, pink];
+    C.eyeMat = eye;
     const root = new THREE.Group();
     root.scale.setScalar(S);
     const body = new THREE.Group();
@@ -245,6 +246,14 @@
   };
 
   function decide() {
+    // 夜里更爱在门廊或屋里打盹
+    if (G.Night && G.Night.k > 0.5 && Math.random() < 0.75) {
+      const cozy = [[0.95, 3.45], [-0.5, 3.62], [0.25, 1.25], [0.9, -0.15]];
+      const s = cozy[Math.floor(Math.random() * cozy.length)];
+      if (Math.hypot(s[0] - C.x, s[1] - C.z) > 1) goTo(s[0], s[1], 'nap', 1.0);
+      else settle('nap', rnd(20, 35));
+      return;
+    }
     const r = Math.random();
     if (r < 0.45) {
       let s;
@@ -397,7 +406,10 @@
         const k = 1.25 / dist;
         goTo(pl.x - dx * k, pl.z - dz * k, 'greet', 2.3);
         say('chirp');
-      } else if (C.state === 'nap' && dist < 1.6 && C.timer > 2) C.timer = 2; // 走得很近会把它吵醒
+      } else if (C.state === 'nap' && dist < 1.6 && C.timer > 2) {
+        C.timer = 2; // 走得很近会把它吵醒
+        if (G.Night && G.Night.k > 0.5) C.sleepy = 8; // 夜里被吵醒：眯着眼看你
+      }
     } else if (C.then === 'follow' && C.path.length === 1) {
       // 跟随时目标随你移动
       const k = 1.3 / Math.max(dist, 0.01);
@@ -449,7 +461,7 @@
     const open = pose.eyes > 0.5;
     for (let i = 0; i < 2; i++) {
       part.eyes[i].visible = open;
-      part.eyes[i].scale.y = 1.18 * Math.max(0.12, blink);
+      part.eyes[i].scale.y = 1.18 * Math.max(0.12, blink) * (C.sleepy > 0 && C.state !== 'pet' ? 0.42 : 1);
       part.shut[i].visible = !open;
       part.shut[i].rotation.z = C.state === 'nap' ? Math.PI : 0; // 睡着是向下的弧线，开心是向上的
       part.ears[i].rotation.z = (i ? -1 : 1) * (0.32 + pose.ears) + Math.sin(t * 0.9 + i * 2) * 0.02;
@@ -482,6 +494,10 @@
     for (const c of part.collar) c.visible = !part.scarf.visible;
     part.hat.visible = ctx.bday > 0.5;
     if (part.hat.visible) part.hat.scale.setScalar(Math.min(1, (ctx.bday - 0.5) * 2.4) * 1.55);
+    if (C.sleepy > 0) C.sleepy -= dt;
+    // 夜里眼睛会反光（像真猫一样发出黄绿色的光）
+    const nk = G.Night ? G.Night.k : 0;
+    C.eyeMat.emissive.setRGB(0.04 + 0.5 * nk, 0.03 + 0.62 * nk, 0.02 + 0.2 * nk);
     // 屋里灯光是暖的；在屋外的阴影里毛色会暗一点、偏冷一点，和周围的草地一致
     const indoor = inHouse(C.x, C.z);
     const sh = indoor ? 0.35 : G.Field.shadowAt(C.x, C.z);

@@ -18,6 +18,8 @@ uniform vec3 uShadowTint;
 uniform vec3 uSnowColor;
 uniform float uSnow;
 uniform float uFoliage;
+uniform float uNight;
+uniform vec4 uLantern;
 uniform sampler2D uField;
 uniform float uFieldHalf;
 uniform vec2 uWindDir;
@@ -38,6 +40,8 @@ float windWave(vec2 p){
   return sin(a * 0.21 - uTime * 1.2 + sin(b * 0.06) * 2.0) * 0.62 + sin(a * 0.57 - uTime * 2.0 + b * 0.13) * 0.38;
 }
 float shadowAt(vec4 f){ return max(f.b, f.a * uFoliage); }
+// 夜里手里提着的小灯笼照亮身边一小片
+vec3 lanternAt(vec3 p){ vec3 d = p - uLantern.xyz; return vec3(1.0, 0.7, 0.38) * (uLantern.w / (1.0 + dot(d, d) * 0.85)); }
 // 被踩倒的草：鸡柳和你脚下各一小圈（xy 位置、z 半径、w 程度）
 uniform vec4 uPress[2];
 vec3 pressAt(vec2 p){
@@ -103,6 +107,7 @@ void main(){
   lit += uSunColor * uRim * (back * hf * hf * sunAmt * 0.9);
   lit = mix(lit, lit * uShadowTint, sh * 0.55);
   lit = mix(lit, uSnowColor * (amb + uSunColor * sunAmt * 0.55), uSnow * smoothstep(0.3, 1.0, hf) * 0.8);
+  lit += col * lanternAt(pos) * (0.5 + 0.5 * hf);
   vColor = lit;
   vDir = V;
   vec4 mv = viewMatrix * vec4(pos, 1.0);
@@ -186,6 +191,7 @@ void main(){
   float back = pow(max(dot(V, uSunDir), 0.0), 4.0);
   col += uSunColor * uRim * (back * 0.32 * (1.0 - pm) * sunAmt * (1.0 - sn * 0.6));
   col = mix(col, col * uShadowTint, sh * 0.5);
+  col += base * lanternAt(vWP);
   float d = length(vWP - cameraPosition);
   gl_FragColor = vec4(mix(col, fogC(V), fogF(d)), 1.0);
 }
@@ -225,17 +231,28 @@ void main(){
     dens = smoothstep(0.5, 0.78, n) * smoothstep(0.02, 0.2, h) * (1.0 - 0.5 * smoothstep(0.6, 0.95, h));
     vec3 cc = mix(uCloudShade, uCloudLit, clamp(0.25 + 0.75 * pow(sd, 2.5) + (n - 0.6) * 1.1, 0.0, 1.0));
     cc += uSunGlow * pow(sd, 10.0) * 0.5;
+    dens *= 1.0 - 0.45 * uNight;
     col = mix(col, cc, dens * 0.88);
   }
-  col += vec3(1.0, 0.95, 0.82) * smoothstep(0.99935, 0.99965, dot(d, uSunDir)) * 0.9 * (1.0 - dens * 0.7);
+  col += vec3(1.0, 0.95, 0.82) * smoothstep(0.99935, 0.99965, dot(d, uSunDir)) * 0.9 * (1.0 - dens * 0.7) * (1.0 - uNight);
   // 太阳对面的天上：一弯月牙，几颗早出的星星
   vec3 md = normalize(vec3(-uSunDir.x * 0.9, 0.62, -uSunDir.z * 0.9 + 0.25));
   float mdot = dot(d, md);
   float disc = smoothstep(0.99962, 0.99974, mdot);
   float cut = smoothstep(0.99955, 0.99968, dot(d, normalize(md + vec3(0.011, 0.007, 0.004))));
-  col += vec3(1.0, 0.97, 0.9) * clamp(disc - cut, 0.0, 1.0) * 0.85 * (1.0 - dens);
-  col += vec3(0.85, 0.88, 1.0) * pow(max(mdot, 0.0), 1400.0) * 0.1;
-  float sv = smoothstep(0.22, 0.7, h) * (1.0 - smoothstep(-0.35, 0.45, dot(d, uSunDir))) * (1.0 - dens);
+  col += vec3(1.0, 0.97, 0.9) * clamp(disc - cut, 0.0, 1.0) * 0.85 * (1.0 - dens) * (1.0 - uNight);
+  col += vec3(0.85, 0.88, 1.0) * pow(max(mdot, 0.0), 1400.0) * 0.1 * (1.0 - uNight);
+  // 银河：斜斜横过天空的一条淡淡光带
+  float band = 0.0;
+  if (uNight > 0.01 && h > -0.02) {
+    vec3 mwN = normalize(vec3(0.5, -1.0, -0.3));
+    float bd = dot(d, mwN);
+    band = exp(-bd * bd / 0.03) * smoothstep(-0.02, 0.25, h) * uNight * (1.0 - dens * 0.6);
+    float cl = fbm(vec2(atan(d.z, d.x) * 3.0, bd * 9.0) + 3.7);
+    col += vec3(0.55, 0.5, 0.8) * band * (0.2 + 0.8 * cl) * 0.75;
+    col -= vec3(0.05, 0.05, 0.08) * band * smoothstep(0.55, 0.75, fbm(vec2(atan(d.z, d.x) * 6.0, bd * 22.0))) ;
+  }
+  float sv = max(smoothstep(0.22, 0.7, h) * (1.0 - smoothstep(-0.35, 0.45, dot(d, uSunDir))), smoothstep(0.0, 0.18, h) * uNight) * (1.0 - dens);
   if (sv > 0.01) {
     vec3 sp = d * 90.0;
     vec3 cell = floor(sp);
@@ -244,7 +261,18 @@ void main(){
     float hs = fract((p3.x + p3.y) * p3.z);
     float dd = length(fract(sp) - 0.5);
     float tw = 0.65 + 0.35 * sin(uTime * (1.0 + hs * 3.0) + hs * 60.0);
-    col += vec3(1.0, 0.97, 0.92) * step(0.985, hs) * smoothstep(0.2, 0.0, dd) * tw * sv * 0.6;
+    float thr = mix(0.985, 0.955 - 0.03 * band, uNight);
+    vec3 sc = mix(vec3(1.0, 0.97, 0.92), mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.9, 0.78), fract(hs * 13.0)), uNight);
+    col += sc * step(thr, hs) * smoothstep(0.2, 0.0, dd) * tw * sv * (0.6 + 0.9 * uNight) * (0.5 + 0.5 * fract(hs * 7.0));
+    // 夜里再加一层更细更密的小星星
+    if (uNight > 0.01) {
+      vec3 sp2 = d * 230.0;
+      vec3 p4 = fract(floor(sp2) * 0.1031);
+      p4 += dot(p4, p4.zyx + 19.19);
+      float h2 = fract((p4.x + p4.y) * p4.z);
+      float d2 = length(fract(sp2) - 0.5);
+      col += vec3(0.85, 0.88, 1.0) * step(0.93 - 0.05 * band, h2) * smoothstep(0.25, 0.0, d2) * sv * uNight * 0.35 * (0.6 + 0.4 * sin(uTime * 2.0 + h2 * 40.0));
+    }
   }
   gl_FragColor = vec4(col, 1.0);
 }
@@ -339,6 +367,7 @@ void main(){
   float back = pow(max(dot(V, uSunDir), 0.0), 3.0);
   lit += c * uSunColor * (back * sunAmt * 0.55 * step(0.5, aKind));
   lit = mix(lit, lit * uShadowTint, sh * 0.5);
+  lit += c * lanternAt(pos);
   vColor = lit;
   vDir = V;
   vec4 mv = viewMatrix * vec4(pos, 1.0);
@@ -502,6 +531,7 @@ void main(){
   float flame = exp(-(q.x * q.x * 900.0 + (q.y - 0.12) * (q.y - 0.12) * 500.0));
   vec3 col = paper * shade * rib * (0.75 + 0.35 * vGlow) + vec3(1.0, 0.95, 0.75) * flame * 0.8;
   col = mix(col, vec3(0.45, 0.16, 0.08), smoothstep(0.152, 0.17, q.y) * 0.7);
+  col *= 1.0 + 0.6 * uNight;
   vec3 c = mix(vec3(1.0, 0.66, 0.34), col, body);
   c = mix(c, uFogColor, vFog * 0.5);
   float a = max(body, halo);

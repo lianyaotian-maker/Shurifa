@@ -106,7 +106,7 @@ varying float vFog;
 void main(){
   float d = length(gl_PointCoord - 0.5);
   float a = smoothstep(0.5, 0.05, d);
-  vec3 c = vColor * (1.0 + 0.6 * smoothstep(0.22, 0.0, d));
+  vec3 c = vColor * (1.0 + 0.6 * smoothstep(0.22, 0.0, d)) * (1.0 + 0.7 * uNight);
   gl_FragColor = vec4(mix(c, uFogColor, vFog), a * vAlpha);
 }
 `;
@@ -374,7 +374,7 @@ void main(){
     P.wreath.visible = on;
     for (const c of P.archPosts) c.off = amt < 0.3;
     // 窗户的光更暖更亮
-    for (const g of G.House.glows) g.material.opacity = g.userData.baseOpacity * (1 + 0.7 * amt);
+    for (const g of G.House.glows) g.material.opacity = Math.min(1, g.userData.baseOpacity * (1 + 0.7 * amt) * (1 + 1.1 * G.U.uNight.value));
     if (!on) return;
     const lu = P.lights.material.uniforms;
     lu.uOn.value = G.clamp(pT / 1.9, 0, 1.2);

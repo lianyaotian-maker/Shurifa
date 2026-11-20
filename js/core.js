@@ -66,6 +66,8 @@
     uField: { value: null },
     uFieldHalf: { value: 112 },
     uPath: { value: [] },
+    uNight: { value: 0 },
+    uLantern: { value: new THREE.Vector4(0, -100, 0, 0) },
     uPress: { value: [new THREE.Vector4(0, 0, 1, 0), new THREE.Vector4(0, 0, 1, 0)] },
     uPx: { value: 600 }
   };

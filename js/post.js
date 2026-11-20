@@ -189,7 +189,7 @@ void main(){
     const facing = G.smooth(0.15, 0.6, fwd.dot(sd));
     const off = Math.max(Math.abs(sunNdc.x), Math.abs(sunNdc.y));
     const amt = facing * (1 - G.smooth(1.1, 1.9, off)) * (sunNdc.z < 1 ? 1 : 0);
-    m.fin.uniforms.uRays.value = amt * (P.hdr ? 0.24 : 0.15);
+    m.fin.uniforms.uRays.value = amt * (P.hdr ? 0.24 : 0.15) * (1 - 0.55 * G.U.uNight.value);
     if (amt > 0.01) {
       m.rays.uniforms.tMap.value = down[0].texture;
       m.rays.uniforms.uSun.value.set(sunNdc.x * 0.5 + 0.5, sunNdc.y * 0.5 + 0.5);
