@@ -447,6 +447,12 @@ void main(){
       const cp = Math.cos(P.pitch), look = v3(-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp);
       if (look.dot(S0) > 0.72) G.Audio.sfx('meteor', 0.9);
     }
+    // 很久才有一声颂钵，月亮上很安静
+    M.bowlT = (M.bowlT === undefined ? 16 : M.bowlT) - dt;
+    if (M.bowlT <= 0) {
+      M.bowlT = 40 + Math.random() * 25;
+      G.Audio.bowl(0.22);
+    }
   };
 
   G.Moon = M;

@@ -286,6 +286,9 @@
   }
   function updateSwing(dt) {
     const s = swing;
+    // 先按这一帧镜头用的角度摆好秋千，再算下一帧（坐在上面时镜头和座位对得上）
+    s.g.rotation.order = 'YXZ';
+    s.g.rotation.x = s.th;
     let acc = -(9.8 / s.L) * Math.sin(s.th) - (s.seated ? 0.05 : 0.22) * s.om;
     // 坐着的时候自己会轻轻荡起来
     if (s.seated) {
@@ -294,8 +297,6 @@
     }
     s.om += acc * dt;
     s.th += s.om * dt;
-    s.g.rotation.order = 'YXZ';
-    s.g.rotation.x = s.th;
   }
 
   /* ---------- 山顶的长椅：坐下来看夕阳 ---------- */

@@ -434,6 +434,10 @@
       const b = await get(man.amb[k].file);
       if (b) S.amb[k] = { buf: b, loop: man.amb[k].loop };
     }
+    if (man.bowl) {
+      const b = await get(man.bowl.file);
+      if (b) S.bowl = { buf: b, seg: man.bowl.seg || [0, b.duration] };
+    }
     A.loading = false;
   };
   A.songURL = (f) => 'sounds/' + f + (VER ? '?v=' + VER : '');
@@ -699,6 +703,13 @@
     const seg = pick(st.hits, k);
     if (seg) playSeg(st.buf, seg, (vol === undefined ? 1 : vol) * rnd(0.75, 1) * (st.synth ? 0.55 : 1), rate, 0.06, filt);
   };
+  // 满月颂钵（真实录音；还没加载好就不出声）
+  A.bowl = function (vol) {
+    if (!ready()) return 0;
+    const B = A.samples && A.samples.bowl;
+    if (!B) return 0;
+    return playSeg(B.buf, B.seg, vol === undefined ? 0.4 : vol, 1, 0.3);
+  };
   A.chime = function (count, vol) {
     if (!ready()) return;
     let t = now();
@@ -880,7 +891,8 @@
         A.bellInto(b, t + 0.45, 2637.02, 0.035 * vol, 1.6);
         A.bellInto(b, t + 0.62, 3520, 0.025 * vol, 1.4);
         break;
-      case 'portal': { // 穿过月光：一串缓缓上行的铃声加一阵轻柔的风
+      case 'portal': { // 穿过月光：颂钵“嗡”的一声，一串缓缓上行的铃声，再加一阵轻柔的风
+        A.bowl(0.55 * vol);
         const seq = [784, 988, 1175, 1568, 1976, 2349, 3136];
         seq.forEach((f, i) => A.bellInto(b, t + i * 0.16, f, 0.1 * vol, 2.6));
         burst(b, t, 1.6, 0.05 * vol, 'bandpass', 800, 3200, 0.6, 0.6, 0.6);

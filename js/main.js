@@ -305,7 +305,7 @@
   }
   // 给其他模块用的界面小工具
   // 长椅上的信
-  const letterEl = $('letter');
+  const letterEl = $('letter'), letterP = letterEl.querySelector('p'), letterDefault = letterP.textContent;
   function closeLetter() {
     letterEl.classList.remove('on');
     setTimeout(() => { if (!letterEl.classList.contains('on')) letterEl.hidden = true; }, 500);
@@ -448,7 +448,9 @@
       mbRender();
       requestAnimationFrame(() => mbEl.classList.add('on'));
     },
-    letter() {
+    // 长椅上的信用默认的那句；别处的信可以传进自己的内容
+    letter(text) {
+      letterP.textContent = text || letterDefault;
       letterEl.hidden = false;
       G.Player.enabled = false;
       G.Player.jx = G.Player.jy = 0;

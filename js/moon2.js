@@ -674,6 +674,24 @@
       A.add(cakeG, at(c[0], TY + 0.03, c[1]), 'paint', COL.cake);
       A.add(cyl(0.042, 0.042, 0.004, 16), at(c[0], TY + 0.047, c[1]), 'paint', COL.cakeTop);
     }
+    /* 桌上的一封信：月白色信封，金色火漆 */
+    const env = new THREE.Group();
+    env.position.set(C.x - 0.08, TY + 0.004, C.z + 0.44);
+    env.rotation.y = 0.18;
+    const ebody = new THREE.Mesh(box(0.25, 0.006, 0.17), G.lambert({ color: 0xf6f1e6, emissive: 0x4a4658 }));
+    const eflap = new THREE.Mesh(new THREE.ConeGeometry(0.104, 0.07, 4, 1), G.lambert({ color: 0xeee6d6, emissive: 0x403c4c }));
+    eflap.scale.set(1.18, 0.05, 0.84);
+    eflap.rotation.y = PI / 4;
+    eflap.position.set(0, 0.004, -0.03);
+    const eseal = new THREE.Mesh(cyl(0.022, 0.024, 0.008, 18), G.lambert({ color: 0xe0b04a, emissive: 0x6a4a10 }));
+    eseal.position.set(0, 0.008, 0.012);
+    env.add(ebody, eflap, eseal);
+    M.group.add(env);
+    const ep = G.Tap.add(G.Tap.proxy(env, 0.17, 0, 0.02, 0), 4.5, () => {
+      G.Audio.sfx('paper');
+      G.UI.letter('Not all at once—but always.');
+    }, { hint: L(-0.08, TY + 0.36, 0.44), hintDist: 7, enabled: () => M.on });
+    ep.prio = true;
   }
 
   /* ================= 石板路、石灯、月光花、碎石、光尘 ================= */
@@ -1074,7 +1092,8 @@
     sa.build(mats, sg);
     M.group.add(sg);
     sw.g = sg;
-    const SWF = v3(Math.sin(0.5), 0, Math.cos(0.5));
+    // 秋千绕着自己的 x 轴转（先转了 0.5 的朝向），座位往 -(sin0.5, cos0.5) 那边荡出去；镜头要跟着同一个方向
+    const SWF = v3(-Math.sin(0.5), 0, -Math.cos(0.5));
     sw.fwd = SWF;
     const seatPos = (v, up) => {
       const r = sw.L - up;
@@ -1329,8 +1348,9 @@
       }
     }
     R.prevS = pc;
-    // 新月秋千
+    // 新月秋千：先按这一帧镜头用的角度摆好模型，再算下一帧（镜头和秋千不会差一帧）
     const sw = M.swing;
+    sw.g.rotation.x = sw.th;
     let acc = -(9.8 / 6 / sw.L) * Math.sin(sw.th) * 6 - (sw.seated ? 0.03 : 0.12) * sw.om;
     if (sw.seated) {
       const amp = Math.sqrt(sw.th * sw.th + (sw.om * sw.om) / (9.8 / sw.L));
@@ -1338,6 +1358,5 @@
     }
     sw.om += acc * dt;
     sw.th += sw.om * dt;
-    sw.g.rotation.x = sw.th;
   };
 })();
