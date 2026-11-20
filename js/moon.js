@@ -1,5 +1,5 @@
 /* 草原小屋 · 月中世界：夜里朝月亮走，顺着光点进入月亮。
-   月面、地球、月宫小亭、桂花树和留言板、捣药的玉兔、挂在新月上的秋千、回草原的月洞门 */
+   这里是地形、天空、进出月亮和每帧的动画；月宫里的建筑和小物件在 moon2.js */
 (function () {
   'use strict';
   const SH = G.SH;
@@ -7,79 +7,241 @@
   const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
   const C = M.C;
   const L = (x, y, z) => v3(C.x + x, y, C.z + z); // 月面局部坐标 → 世界坐标
+  M.v3 = v3;
+  M.L = L;
+  // 月面上的光从来时方向的右后上方照过来，正面看得清亭子
+  M.LIGHT = v3(0.5, 0.6, 0.62).normalize();
+  M.FOG = new THREE.Color(0.1, 0.11, 0.25);
 
   /* ---------- 月面高度 ---------- */
-  const CRATERS = [[-18, 14, 5.5, 1.2], [20, 12, 7, 1.5], [-24, -20, 8, 1.6], [26, -22, 4.5, 1.0], [6, 34, 6, 1.3], [-36, 2, 5, 1.1], [34, 30, 4, 0.9]];
+  const CRATERS = [[-18, 14, 5.5, 1.2], [20, 12, 7, 1.5], [-24, -20, 8, 1.6], [26, -22, 4.5, 1.0], [7, 36, 6, 1.3], [-36, 2, 5, 1.1], [34, 30, 4, 0.9], [-30, 30, 6.5, 1.4], [38, -2, 5, 1.0], [-6, -38, 7, 1.4], [16, -40, 4, 0.8]];
+  {
+    // 再撒一些小坑（避开中间的小院和来时的路）
+    const r = G.rng(777);
+    for (let i = 0; i < 46; i++) {
+      const a = r() * 6.283, d = 13 + r() * 40, x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (Math.abs(x) < 4 && z > 0 && z < 26) continue;
+      const rad = 0.8 + r() * r() * 3.2;
+      CRATERS.push([x, z, rad, rad * (0.16 + r() * 0.1)]);
+    }
+  }
   function crater(d, r, depth) {
     if (d > r * 1.6) return 0;
     const inner = d < r ? -depth * (1 - (d / r) * (d / r)) : 0;
     return inner + depth * 0.4 * Math.exp(-Math.pow((d - r) / (0.28 * r), 2));
   }
+  function craterK(lx, lz) {
+    // 坑底（负）和坑沿（正）的程度，用来上色
+    let k = 0;
+    for (const c of CRATERS) {
+      const d = Math.hypot(lx - c[0], lz - c[1]);
+      if (d > c[2] * 1.6) continue;
+      k += d < c[2] ? -(1 - (d / c[2]) ** 2) * Math.min(1, c[3]) : Math.exp(-Math.pow((d - c[2]) / (0.3 * c[2]), 2)) * 0.8 * Math.min(1, c[3]);
+    }
+    return k;
+  }
   function rawH(lx, lz) {
-    let h = 0.5 * Math.sin(lx * 0.07 + 1) * Math.sin(lz * 0.06) + 0.25 * Math.sin(lx * 0.13 + lz * 0.11);
+    let h = 0.5 * Math.sin(lx * 0.07 + 1) * Math.sin(lz * 0.06) + 0.25 * Math.sin(lx * 0.13 + lz * 0.11) + (G.vnoise(lx * 0.18, lz * 0.18) - 0.5) * 0.35;
     for (const c of CRATERS) h += crater(Math.hypot(lx - c[0], lz - c[1]), c[2], c[3]);
     const d = Math.hypot(lx, lz);
     h *= G.smooth(9, 20, d); // 月宫周围是平地
-    h += G.smooth(M.R - 6, M.R + 14, d) * 14; // 远处的环形山
+    if (d > M.R - 8) {
+      // 远处高低错落的环形山
+      const a = Math.atan2(lz, lx), cx = Math.cos(a), sz = Math.sin(a);
+      const n = G.vnoise(cx * 2.2 + 7, sz * 2.2 + 3) * 0.6 + G.vnoise(cx * 5.5 + 1, sz * 5.5 + 9) * 0.3 + G.vnoise(cx * 14 + 4, sz * 14 + 2 + d * 0.08) * 0.1;
+      h += G.smooth(M.R - 6, M.R + 18, d) * (7 + 26 * n * n) + G.smooth(M.R + 10, M.R + 40, d) * 6 * G.vnoise(lx * 0.08, lz * 0.08);
+    }
     return h;
   }
-  const PLAT = 3.3, PLAT_H = 0.42;
+  M.rawH = rawH;
+  M.CRATERS = CRATERS;
+  // 八角石台：PLAT 是台面的边心距
+  const PLAT = (M.PLAT = 3.3), PLAT_H = (M.PLAT_H = 0.42), PLINTH = (M.PLINTH = 3.75);
+  const oct = (M.oct = (x, z) => Math.max(Math.abs(x), Math.abs(z), Math.abs(x + z) * 0.7071, Math.abs(x - z) * 0.7071));
   M.groundAt = function (x, z) {
     const lx = x - C.x, lz = z - C.z;
-    if (Math.hypot(lx, lz) < PLAT) return PLAT_H;
+    const o = oct(lx, lz);
+    if (o < PLAT) return PLAT_H;
+    if (Math.abs(lx) < 0.95 && Math.abs(lz) < 3.66) return 0.28; // 前后两道台阶
+    if (o < PLINTH || (Math.abs(lx) < 1.05 && Math.abs(lz) < 4.15)) return 0.14;
     return rawH(lx, lz);
   };
 
-  /* ---------- 天空：深蓝夜空、星星、一颗地球 ---------- */
+  /* ---------- 天空：深蓝夜空、几层星星、银河、流星、一颗地球 ---------- */
   const SKY_FS = SH.COMMON + /* glsl */ `
 uniform vec3 uEarth;
 varying vec3 vDir;
+float fbm4(vec2 p){ float s = 0.0; float a = 0.5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; } return s; }
+// 按纬度分带、每一带的格子数取整，星星在哪儿都是圆的，也没有接缝
+vec3 starL(vec3 d, float sc, float dens, float sz, float seed){
+  float lat = asin(clamp(d.y, -1.0, 1.0));
+  float lon = atan(d.z, d.x);
+  float by = lat * sc;
+  float bi = floor(by);
+  float cl = max(cos((bi + 0.5) / sc), 0.0);
+  float nx = max(1.0, floor(6.2832 * sc * cl));
+  float bx = (lon / 6.2832 + 0.5) * nx;
+  vec2 id = vec2(floor(bx), bi);
+  float h = hash12(id * 1.37 + seed);
+  vec2 j = vec2(hash12(id + seed + 3.1), hash12(id + seed + 7.7)) * 0.6 + 0.2;
+  vec2 f = vec2(fract(bx), fract(by)) - j;
+  f.x *= 6.2832 * sc * max(cl, 0.02) / nx;
+  float dd = length(f);
+  float br = fract(h * 13.7);
+  float tw = 0.62 + 0.38 * sin(uTime * (1.1 + br * 3.0) + h * 60.0);
+  vec3 c = mix(vec3(0.72, 0.8, 1.0), vec3(1.0, 0.86, 0.7), step(0.7, fract(h * 7.3)));
+  return c * step(1.0 - dens, h) * (smoothstep(sz, 0.0, dd) + smoothstep(sz * 2.5, 0.0, dd) * 0.12) * (0.3 + 0.7 * br) * tw;
+}
 void main(){
   vec3 d = normalize(vDir);
   float h = d.y;
-  vec3 col = mix(vec3(0.07, 0.09, 0.2), vec3(0.01, 0.015, 0.05), pow(clamp(h, 0.0, 1.0), 0.6));
-  col = mix(col, vec3(0.1, 0.11, 0.22), smoothstep(0.0, -0.1, h));
-  // 星星：按球面经纬度分格，避免被画成一道道竖线
-  vec2 sph = vec2(atan(d.z, d.x) * 60.0, asin(clamp(d.y, -1.0, 1.0)) * 60.0);
-  vec2 sp = sph;
-  float hs = hash12(floor(sp));
-  float dd = length(fract(sp) - 0.5);
-  col += mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 0.9, 0.78), fract(hs * 9.0)) * step(0.93, hs) * smoothstep(0.16, 0.0, dd) * (0.4 + 0.6 * fract(hs * 17.0)) * (0.55 + 0.45 * sin(uTime * (1.0 + hs * 3.0) + hs * 50.0)) * smoothstep(-0.05, 0.15, h);
+  float up = clamp(h, 0.0, 1.0);
+  vec3 col = mix(vec3(0.085, 0.095, 0.21), vec3(0.012, 0.016, 0.05), pow(up, 0.5));
+  // 地平线上一层薄薄的蓝紫色辉光
+  col += vec3(0.1, 0.1, 0.24) * exp(-up * 10.0) * 0.55;
+  col = mix(col, vec3(0.1, 0.11, 0.25), smoothstep(0.0, -0.08, h));
+  float sky = smoothstep(-0.02, 0.12, h);
+  // 银河：一条斜斜跨过头顶的光带
+  vec3 MW = normalize(vec3(0.918, -0.259, -0.298));
+  float b = dot(d, MW);
+  vec3 u1 = normalize(cross(MW, vec3(0.0, 1.0, 0.0)));
+  vec3 u2 = cross(MW, u1);
+  vec2 bp = vec2(dot(d, u1), dot(d, u2));
+  float n = fbm4(bp * 5.0 + b * 9.0);
+  float w = exp(-b * b / 0.02) * (0.45 + 0.75 * n);
+  float lane = exp(-b * b / 0.0016) * smoothstep(0.45, 0.72, fbm4(bp * 9.0 + 4.0));
+  col += mix(vec3(0.16, 0.18, 0.42), vec3(0.46, 0.42, 0.58), w * w) * w * 0.42 * sky * (1.0 - lane * 0.7);
+  float neb = fbm4(bp * 2.5 + 11.0) - 0.75;
+  col += vec3(0.32, 0.2, 0.42) * exp(-neb * neb * 40.0) * 0.06 * sky;
+  // 三层星星：少量亮星、一般的星、银河里密密的小星
+  vec3 st = starL(d, 30.0, 0.09, 0.075, 1.0) * 1.6 + starL(d, 80.0, 0.16, 0.13, 7.0) + starL(d, 150.0, 0.06 + 0.5 * w, 0.12, 13.0) * 0.6;
+  col += st * sky;
+  // 偶尔一颗流星
+  float per = 9.0;
+  float k = floor(uTime / per);
+  float prog = (uTime - k * per) / 1.1;
+  vec3 S0 = normalize(vec3(cos(hash12(vec2(k, 1.3)) * 6.2832), 0.5 + hash12(vec2(k, 7.1)) * 0.9, sin(hash12(vec2(k, 1.3)) * 6.2832)));
+  vec3 T1 = normalize(cross(S0, vec3(0.0, 1.0, 0.0)));
+  vec3 B1 = cross(T1, S0);
+  vec3 Td = normalize(T1 * (hash12(vec2(k, 3.7)) > 0.5 ? 1.0 : -1.0) - B1 * 0.55);
+  vec3 Bn = cross(Td, S0);
+  vec2 q = vec2(dot(d - S0, Td), dot(d - S0, Bn));
+  float head = mix(-0.22, 0.22, prog);
+  float along = clamp((q.x - head + 0.2) / 0.2, 0.0, 1.0) * step(q.x, head);
+  float met = smoothstep(0.003, 0.0, abs(q.y)) * along * along * sin(clamp(prog, 0.0, 1.0) * 3.1416) * step(prog, 1.0) * step(0.6, dot(d, S0));
+  col += vec3(0.85, 0.9, 1.0) * met * 1.6;
   // 地球
   vec3 E = normalize(uEarth);
   float ce = dot(d, E);
   vec3 rt = normalize(cross(E, vec3(0.0, 1.0, 0.0)));
-  vec3 up = cross(rt, E);
-  vec2 q = vec2(dot(d, rt), dot(d, up)) / 0.1;
-  float r = length(q);
+  vec3 eu = cross(rt, E);
+  vec2 eq = vec2(dot(d, rt), dot(d, eu)) / 0.105;
+  float r = length(eq);
   if (ce > 0.0) {
-    float disc = 1.0 - smoothstep(0.97, 1.0, r);
-    vec3 n = normalize(vec3(q, sqrt(max(0.0, 1.0 - r * r))));
-    float land = smoothstep(0.52, 0.6, vnoise(q * 2.2 + 3.0) * 0.7 + vnoise(q * 5.0) * 0.3);
-    float cloud = smoothstep(0.55, 0.75, vnoise(q * 3.5 + vec2(uTime * 0.01, 0.0)) * 0.6 + vnoise(q * 8.0) * 0.4);
-    vec3 surf = mix(vec3(0.12, 0.32, 0.62), mix(vec3(0.3, 0.55, 0.28), vec3(0.62, 0.55, 0.38), vnoise(q * 4.0)), land);
-    surf = mix(surf, vec3(0.95), cloud * 0.85);
-    float lit = clamp(dot(n, normalize(vec3(0.75, 0.35, 0.55))) * 1.1 + 0.08, 0.0, 1.0);
-    vec3 ec = surf * lit + vec3(0.35, 0.55, 1.0) * pow(1.0 - n.z, 3.0) * 0.6 * lit;
     float o = max(r - 1.0, 0.0);
-    col += vec3(0.35, 0.55, 1.0) * exp(-o * 9.0) * 0.35 * (1.0 - disc);
-    col = mix(col, ec, disc);
+    col += vec3(0.3, 0.5, 1.0) * (exp(-o * 9.0) * 0.32 + exp(-o * 1.6) * 0.05) * step(0.985, r);
+    if (r < 1.0) {
+      float disc = 1.0 - smoothstep(0.985, 1.0, r);
+      vec3 nn = vec3(eq, sqrt(max(0.0, 1.0 - r * r)));
+      float ang = uTime * 0.012;
+      vec3 m = vec3(nn.x * cos(ang) - nn.z * sin(ang), nn.y, nn.x * sin(ang) + nn.z * cos(ang));
+      float land = smoothstep(0.5, 0.56, fbm4(m.xy * 2.4 + m.z * 1.3 + 3.0));
+      float ice = smoothstep(0.82, 0.9, abs(m.y));
+      float cloud = smoothstep(0.52, 0.78, fbm4(m.yz * 3.0 + m.x * 2.0 + vec2(uTime * 0.004, 0.0)));
+      vec3 ocean = mix(vec3(0.03, 0.13, 0.38), vec3(0.08, 0.3, 0.62), nn.z);
+      vec3 grd = mix(vec3(0.2, 0.4, 0.2), vec3(0.62, 0.53, 0.34), smoothstep(0.38, 0.7, fbm4(m.xz * 5.0)));
+      vec3 surf = mix(ocean, grd, land);
+      surf = mix(surf, vec3(0.92, 0.95, 1.0), ice);
+      surf = mix(surf, vec3(0.97), cloud * 0.9);
+      vec3 Ld = normalize(vec3(0.82, 0.25, 0.5));
+      float nl = dot(nn, Ld);
+      float lit = smoothstep(-0.12, 0.35, nl);
+      vec3 ec = surf * (lit * 1.05 + 0.025);
+      ec += vec3(1.0, 0.92, 0.8) * pow(max(dot(nn, normalize(Ld + vec3(0.0, 0.0, 1.0))), 0.0), 40.0) * (1.0 - land) * (1.0 - cloud) * 0.6;
+      float city = step(0.84, hash12(floor(m.xy * 55.0 + m.z * 13.0))) * land * (1.0 - cloud);
+      ec += vec3(1.0, 0.72, 0.36) * city * (1.0 - smoothstep(-0.3, 0.02, nl)) * 0.75;
+      ec = mix(ec, vec3(0.45, 0.68, 1.0), pow(1.0 - nn.z, 2.5) * 0.7 * smoothstep(-0.3, 0.4, nl));
+      col = mix(col, ec, disc);
+    }
   }
   gl_FragColor = vec4(col, 1.0);
 }
 `;
 
+  /* ---------- 月面：银灰的月壤、细细的颗粒、闪光的小晶粒、灯下的暖光 ---------- */
+  const GROUND_VS = /* glsl */ `
+attribute vec3 aCol;
+varying vec3 vCol;
+varying vec3 vN;
+varying vec3 vW;
+void main(){
+  vCol = aCol;
+  vN = normal;
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vW = w.xyz;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}
+`;
+  const GROUND_FS = SH.COMMON + /* glsl */ `
+uniform vec3 uL;
+uniform vec3 uC;
+uniform vec3 uMFog;
+uniform vec4 uPools[14];
+varying vec3 vCol;
+varying vec3 vN;
+varying vec3 vW;
+float fbm3(vec2 p){ float s = 0.0; float a = 0.5; for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.07 + vec2(3.1, 1.7); a *= 0.5; } return s; }
+void main(){
+  vec2 p = vW.xz;
+  vec2 lp = p - uC.xz;
+  float n1 = fbm3(p * 0.33);
+  float n2 = vnoise(p * 2.7);
+  float g = hash12(floor(p * 16.0));
+  vec3 base = vCol * (0.84 + 0.26 * n1 + 0.07 * n2 + 0.06 * (g - 0.5));
+  // 细小的碎石点
+  vec2 pc = p * 5.0;
+  float hp = hash12(floor(pc));
+  base *= 1.0 - 0.16 * step(0.9, hp) * smoothstep(0.32, 0.12, length(fract(pc) - 0.5));
+  // 起伏的细节：用噪声做一点凹凸
+  float e = 0.15;
+  float hx = fbm3((p + vec2(e, 0.0)) * 0.9) - fbm3((p - vec2(e, 0.0)) * 0.9);
+  float hz = fbm3((p + vec2(0.0, e)) * 0.9) - fbm3((p - vec2(0.0, e)) * 0.9);
+  vec3 N = normalize(normalize(vN) + vec3(-hx, 0.0, -hz) * 1.1);
+  float dif = max(dot(N, uL), 0.0);
+  vec3 lit = base * (vec3(0.3, 0.33, 0.5) * (0.65 + 0.35 * N.y) + vec3(0.86, 0.89, 1.0) * dif * 0.82);
+  // 亭子和桂花树脚下的一点阴影
+  float o = max(max(abs(lp.x), abs(lp.y)), max(abs(lp.x + lp.y), abs(lp.x - lp.y)) * 0.7071);
+  lit *= mix(0.72, 1.0, smoothstep(3.75, 5.2, o));
+  lit *= mix(0.7, 1.0, smoothstep(1.3, 3.4, length(lp - vec2(-7.5, -2.5))));
+  // 灯笼照在地上的暖光
+  vec3 pool = vec3(0.0);
+  for (int i = 0; i < 14; i++) {
+    vec2 dv = lp - uPools[i].xy;
+    float q = dot(dv, dv) / (uPools[i].z * uPools[i].z);
+    pool += uPools[i].w / (1.0 + q * 3.0) * smoothstep(1.0, 0.3, q);
+  }
+  lit += base * vec3(1.0, 0.68, 0.38) * pool;
+  // 月壤里亮晶晶的小晶粒，近处才看得见
+  float dist = length(vW - cameraPosition);
+  vec2 sc = p * 8.0;
+  float hs = hash12(floor(sc) + 17.0);
+  float sp = step(0.986, hs) * smoothstep(0.16, 0.0, length(fract(sc) - 0.5)) * (0.5 + 0.5 * sin(uTime * 2.3 + hs * 90.0 + dot(cameraPosition.xz, vec2(0.9, 0.6)) * 1.3));
+  lit += vec3(0.82, 0.9, 1.0) * sp * 1.4 * smoothstep(22.0, 3.0, dist);
+  gl_FragColor = vec4(mix(lit, uMFog, fogF(dist) * 0.92), 1.0);
+}
+`;
+
   /* ---------- 小工具 ---------- */
-  const room = (c, e) => {
+  const room = (M.room = (c, e) => {
     const col = new THREE.Color(c);
     return G.lambert({ color: col, emissive: col.clone().multiplyScalar(e === undefined ? 0.18 : e) });
-  };
-  function mesh(geo, mat, x, y, z, parent) {
+  });
+  M.mesh = function (geo, mat, x, y, z, parent) {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, y, z);
     (parent || M.group).add(m);
     return m;
-  }
+  };
 
   M.build = function (scene, lights, camera) {
     M.scene = scene;
@@ -89,7 +251,8 @@ void main(){
     g.visible = false;
     scene.add(g);
     M.cols = { rects: [], circles: [] };
-    const rnd = G.rng(9191);
+    M.glows = [];
+    M.pools = [];
 
     /* 天空 */
     const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 48, 24), SH.mat(SH.SKY_VS, SKY_FS, { uEarth: { value: v3(0.2, 0.33, -0.92) } }, { side: THREE.BackSide, depthWrite: false }));
@@ -98,280 +261,36 @@ void main(){
     g.add(sky);
 
     /* 月面 */
-    const geo = new THREE.PlaneGeometry(200, 200, 150, 150);
+    const geo = new THREE.PlaneGeometry(200, 200, 160, 160);
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i), h = rawH(x, z);
+      const x = pos.getX(i), z = pos.getZ(i), h = rawH(x, z), d = Math.hypot(x, z);
       pos.setY(i, h);
-      const n = G.vnoise(x * 0.15, z * 0.15) * 0.6 + G.vnoise(x * 0.6, z * 0.6) * 0.4;
-      const c = 0.82 + 0.22 * n - Math.max(0, -h) * 0.08;
-      col.set([c * 0.92, c * 0.95, c * 1.05], i * 3);
+      // 大片的深浅（像月海）、坑底更暗、坑沿更亮、远山的山脊发白
+      const mare = G.smooth(0.45, 0.7, G.vnoise(x * 0.035 + 4, z * 0.035 + 9) * 0.7 + G.vnoise(x * 0.09, z * 0.09) * 0.3);
+      const ck = craterK(x, z) * G.smooth(9, 20, d);
+      let c = 0.86 - mare * 0.12 + ck * 0.1;
+      c += G.smooth(M.R, M.R + 30, d) * 0.06;
+      const warm = G.vnoise(x * 0.05 + 20, z * 0.05) * 0.05;
+      col.set([c * (0.78 + warm), c * 0.8, c * (0.9 - warm * 0.5)], i * 3);
     }
-    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setAttribute('aCol', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const ground = new THREE.Mesh(geo, G.lambert({ color: 0x7f88a8, vertexColors: true, emissive: 0x161a32 }));
+    M.poolU = [];
+    for (let i = 0; i < 14; i++) M.poolU.push(new THREE.Vector4(0, 0, 1, 0));
+    const ground = new THREE.Mesh(geo, SH.mat(GROUND_VS, GROUND_FS, {
+      uL: { value: M.LIGHT },
+      uC: { value: C },
+      uMFog: { value: M.FOG },
+      uPools: { value: M.poolU }
+    }));
     ground.position.copy(C);
     g.add(ground);
-    // 地上散落的小光点（月尘）
-    const dust = new THREE.BufferGeometry(), dp = [];
-    for (let i = 0; i < 500; i++) {
-      const a = rnd() * 6.283, r = 3 + Math.sqrt(rnd()) * 50;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      dp.push(C.x + x, rawH(x, z) + 0.05, C.z + z);
-    }
-    dust.setAttribute('position', new THREE.Float32BufferAttribute(dp, 3));
-    const dustP = new THREE.Points(dust, new THREE.PointsMaterial({ color: 0xdfe8ff, size: 0.09, transparent: true, opacity: 0.8, depthWrite: false, fog: false }));
-    g.add(dustP);
 
-    /* 月宫小亭 */
-    const stone = room(0xe4e2ea, 0.2), red = room(0xb83a34, 0.25), gold = room(0xe8c25a, 0.35), roof = room(0x5a8a98, 0.35);
-    const pav = new THREE.Group();
-    pav.position.copy(L(0, 0, 0));
-    g.add(pav);
-    mesh(new THREE.CylinderGeometry(PLAT, PLAT + 0.15, PLAT_H, 40), stone, 0, PLAT_H / 2, 0, pav);
-    mesh(new THREE.CylinderGeometry(PLAT + 0.6, PLAT + 0.7, 0.16, 40), stone, 0, 0.08, 0, pav);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-      const x = Math.cos(a) * 2.7, z = Math.sin(a) * 2.7;
-      mesh(new THREE.CylinderGeometry(0.13, 0.15, 2.6, 12), red, x, PLAT_H + 1.3, z, pav);
-      M.cols.circles.push({ x: C.x + x, z: C.z + z, r: 0.2 });
-    }
-    mesh(new THREE.TorusGeometry(2.75, 0.09, 8, 48).rotateX(Math.PI / 2), red, 0, PLAT_H + 2.55, 0, pav);
-    const rf = mesh(new THREE.ConeGeometry(4.3, 1.5, 8, 1, true), roof, 0, PLAT_H + 3.3, 0, pav);
-    rf.material.side = THREE.DoubleSide;
-    const eave = mesh(new THREE.ConeGeometry(4.55, 0.35, 8, 1, true), roof, 0, PLAT_H + 2.6, 0, pav);
-    eave.scale.y = -1;
-    mesh(new THREE.TorusGeometry(4.4, 0.06, 6, 8).rotateX(Math.PI / 2), gold, 0, PLAT_H + 2.58, 0, pav).rotation.y = Math.PI / 8;
-    // 八个翘起的檐角
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const tip = mesh(new THREE.ConeGeometry(0.1, 0.55, 6), gold, Math.cos(a) * 4.45, PLAT_H + 2.75, Math.sin(a) * 4.45, pav);
-      tip.rotation.set(0, -a, -0.9);
-      tip.rotation.order = 'YZX';
-    }
-    mesh(new THREE.SphereGeometry(0.22, 14, 10), gold, 0, PLAT_H + 4.15, 0, pav);
-    mesh(new THREE.ConeGeometry(0.12, 0.6, 10), gold, 0, PLAT_H + 4.5, 0, pav);
-    // 石桌石凳
-    mesh(new THREE.CylinderGeometry(0.6, 0.45, 0.75, 20), stone, 0, PLAT_H + 0.38, 0, pav);
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.42, 14), stone, Math.cos(a) * 1.15, PLAT_H + 0.21, Math.sin(a) * 1.15, pav);
-    }
-    M.cols.circles.push({ x: C.x, z: C.z, r: 0.75 });
-    // 灯笼
-    M.glows = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const lx = Math.cos(a) * 3.7, lz = Math.sin(a) * 3.7;
-      const lan = mesh(new THREE.SphereGeometry(0.2, 14, 10), room(0xe8402e, 0.75), lx, PLAT_H + 2.05, lz, pav);
-      lan.scale.y = 1.25;
-      mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.45, 4), gold, lx, PLAT_H + 2.45, lz, pav);
-      mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 10), gold, lx, PLAT_H + 2.31, lz, pav);
-      const gl = G.glow(0xff8a50, 1.6, 0.55);
-      gl.position.set(lx, PLAT_H + 2.05, lz);
-      pav.add(gl);
-      M.glows.push(gl);
-    }
-
-    /* 桂花树 */
-    const tx = -7.5, tz = -2.5, ty = rawH(tx, tz) * 0;
-    const bark = room(0x6a4a3a, 0.12);
-    const trunk = mesh(new THREE.CylinderGeometry(0.22, 0.38, 3.0, 10), bark, C.x + tx, ty + 1.5, C.z + tz);
-    trunk.rotation.z = 0.05;
-    for (let i = 0; i < 4; i++) {
-      const b = mesh(new THREE.CylinderGeometry(0.06, 0.13, 1.6, 6), bark, C.x + tx, ty + 2.6, C.z + tz);
-      b.rotation.set(0.8, (i / 4) * 6.28 + 0.4, 0, 'YXZ');
-      b.translateY(0.7);
-    }
-    const leaf = room(0x2f5a3a, 0.22);
-    const blobs = [[0, 3.9, 0, 1.9], [1.4, 3.4, 0.4, 1.3], [-1.3, 3.5, -0.3, 1.35], [0.3, 3.3, 1.3, 1.25], [-0.4, 3.4, -1.3, 1.25], [0.2, 4.9, 0.1, 1.2]];
-    const flowers = [];
-    for (const b of blobs) {
-      const s = mesh(new THREE.IcosahedronGeometry(b[3], 2), leaf, C.x + tx + b[0], ty + b[2] * 0 + b[1], C.z + tz + b[2]);
-      s.scale.y = 0.85;
-      for (let k = 0; k < 40; k++) {
-        const u = rnd() * 2 - 1, a = rnd() * 6.283, r = Math.sqrt(1 - u * u);
-        flowers.push(v3(C.x + tx + b[0] + Math.cos(a) * r * b[3] * 1.02, ty + b[1] + u * b[3] * 0.87, C.z + tz + b[2] + Math.sin(a) * r * b[3] * 1.02));
-      }
-    }
-    const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.06, 0), room(0xffc84a, 0.7), flowers.length);
-    const m4 = new THREE.Matrix4();
-    flowers.forEach((p, i) => {
-      m4.makeTranslation(p.x, p.y, p.z);
-      fl.setMatrixAt(i, m4);
-    });
-    g.add(fl);
-    const tg = G.glow(0xffd27a, 9, 0.12);
-    tg.position.set(C.x + tx, ty + 3.9, C.z + tz);
-    g.add(tg);
-    M.cols.circles.push({ x: C.x + tx, z: C.z + tz, r: 0.5 });
-    // 飘落的桂花
-    const pn = 70, pg = new THREE.BufferGeometry();
-    M.petals = { n: pn, p: new Float32Array(pn * 3), v: [], ox: C.x + tx, oz: C.z + tz };
-    for (let i = 0; i < pn; i++) {
-      M.petals.v.push({ y: rnd() * 5, a: rnd() * 6.283, r: rnd() * 3, s: 0.25 + rnd() * 0.3, ph: rnd() * 6 });
-    }
-    pg.setAttribute('position', new THREE.BufferAttribute(M.petals.p, 3));
-    M.petals.pts = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xffd060, size: 0.08, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
-    M.petals.pts.frustumCulled = false;
-    g.add(M.petals.pts);
-
-    /* 树下的留言板 */
-    const bx = -5.2, bz = 0.6, by = 0;
-    const board = new THREE.Group();
-    board.position.set(C.x + bx, by, C.z + bz);
-    board.rotation.y = 0.9;
-    const wood = room(0x8a5a3a, 0.2);
-    mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), wood, -0.62, 0.85, 0, board);
-    mesh(new THREE.BoxGeometry(0.08, 1.7, 0.08), wood, 0.62, 0.85, 0, board);
-    mesh(new THREE.BoxGeometry(1.4, 0.9, 0.06), wood, 0, 1.15, 0, board);
-    mesh(new THREE.BoxGeometry(1.55, 0.08, 0.14), room(0x5a3a28, 0.15), 0, 1.66, 0, board);
-    const noteCols = [0xfff2cc, 0xffd6e0, 0xd8f0ff, 0xe6ffd8, 0xfff8ec];
-    for (let i = 0; i < 9; i++) {
-      const n = mesh(new THREE.PlaneGeometry(0.26, 0.2), room(noteCols[i % 5], 0.45), -0.48 + (i % 4) * 0.32 + (rnd() - 0.5) * 0.05, 0.92 + Math.floor(i / 4) * 0.25 + (rnd() - 0.5) * 0.04, 0.035, board);
-      n.rotation.z = (rnd() - 0.5) * 0.2;
-    }
-    const sign = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: G.tex(G.canvas(256, 80, (x) => {
-        x.fillStyle = 'rgba(255,248,236,0.95)';
-        x.fillRect(8, 8, 240, 64);
-        x.strokeStyle = '#c8a050';
-        x.lineWidth = 4;
-        x.strokeRect(8, 8, 240, 64);
-        x.fillStyle = '#6a3a22';
-        x.font = '700 38px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
-        x.textAlign = 'center';
-        x.textBaseline = 'middle';
-        x.fillText('留言板', 128, 42);
-      })), transparent: true, depthWrite: false, fog: false
-    }));
-    sign.scale.set(0.7, 0.22, 1);
-    sign.position.set(0, 1.95, 0);
-    board.add(sign);
-    g.add(board);
-    M.cols.circles.push({ x: C.x + bx, z: C.z + bz, r: 0.6 });
-    G.Tap.add(G.Tap.proxy(board, 0.75, 0, 1.15, 0), 5, () => G.UI.board(), { hint: L(bx, 2.35, bz), hintDist: 7, enabled: () => M.on });
-
-    /* 玉兔和药臼 */
-    const rb = new THREE.Group();
-    const white = room(0xf6f4f2, 0.3), pinkM = room(0xffb0c0, 0.3), eye = room(0xd02a3a, 0.6);
-    const body = mesh(new THREE.SphereGeometry(0.26, 18, 14), white, 0, 0.27, 0, rb);
-    body.scale.set(0.9, 1, 1.1);
-    const head = new THREE.Group();
-    head.position.set(0, 0.6, 0.12);
-    rb.add(head);
-    mesh(new THREE.SphereGeometry(0.17, 18, 14), white, 0, 0, 0, head);
-    for (const sx of [-1, 1]) {
-      const ear = new THREE.Group();
-      ear.position.set(sx * 0.07, 0.12, -0.02);
-      ear.rotation.z = -sx * 0.18;
-      const eo = mesh(new THREE.SphereGeometry(0.06, 12, 10), white, 0, 0.17, 0, ear);
-      eo.scale.set(0.75, 3.0, 0.55);
-      const ei = mesh(new THREE.SphereGeometry(0.035, 10, 8), pinkM, 0, 0.17, 0.02, ear);
-      ei.scale.set(0.7, 3.4, 0.4);
-      head.add(ear);
-      mesh(new THREE.SphereGeometry(0.025, 10, 8), eye, sx * 0.075, 0.03, 0.14, head);
-      mesh(new THREE.SphereGeometry(0.035, 8, 6), pinkM, sx * 0.09, -0.03, 0.13, head).scale.set(1, 0.6, 0.5);
-    }
-    mesh(new THREE.SphereGeometry(0.02, 8, 6), pinkM, 0, -0.01, 0.17, head);
-    mesh(new THREE.SphereGeometry(0.09, 12, 10), white, 0, 0.18, -0.29, rb);
-    const pestle = new THREE.Group();
-    pestle.position.set(0, 0.45, 0.25);
-    const stick = mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.5, 8), room(0xb88a5a, 0.2), 0, -0.1, 0.12, pestle);
-    stick.rotation.x = 0.35;
-    rb.add(pestle);
-    const mortar = new THREE.Group();
-    mesh(new THREE.CylinderGeometry(0.2, 0.15, 0.28, 18), room(0xd8d4dc, 0.2), 0, 0.14, 0, mortar);
-    mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 18), room(0xeee2c8, 0.45), 0, 0.275, 0, mortar);
-    M.rabbit = { g: rb, head, pestle, home: L(4.8, 0, 2.2), x: C.x + 4.8, z: C.z + 2.2, t: 0, hop: 0, target: null, next: 6, heading: Math.PI + 0.3 };
-    mortar.position.set(C.x + 4.8, 0, C.z + 2.55);
-    rb.position.set(M.rabbit.x, 0, M.rabbit.z);
-    g.add(rb, mortar);
-    M.cols.circles.push({ x: C.x + 4.8, z: C.z + 2.55, r: 0.28 });
-    G.Tap.add(G.Tap.proxy(rb, 0.4, 0, 0.45, 0), 4.5, () => {
-      const R = M.rabbit;
-      R.hop = 1;
-      R.happy = 2.5;
-      G.Things.emit('heart', v3(R.x, 1.0, R.z), 4, { spread: 0.2, velRand: 0.35, vel: v3(0, 0.35, 0), stagger: 0.25 });
-      G.Audio.sfx('squeak');
-    }, { hint: (v) => v.set(M.rabbit.x, 1.35, M.rabbit.z), hintDist: 6, enabled: () => M.on });
-
-    /* 新月秋千 */
-    const cr = new THREE.Group();
-    const moonMat = room(0xfff0c8, 0.85);
-    const tor = mesh(new THREE.TorusGeometry(2.6, 0.5, 16, 48, 2.6), moonMat, 0, 0, 0, cr);
-    tor.scale.z = 0.5;
-    cr.position.copy(L(10, 6.2, -5));
-    cr.rotation.set(0, -0.4, Math.PI * 0.5 + 0.35);
-    g.add(cr);
-    const cg = G.glow(0xfff0c0, 11, 0.3);
-    cg.position.copy(cr.position);
-    g.add(cg);
-    // 吊点：新月下端的尖角
-    cr.updateMatrixWorld(true);
-    const tip = v3(2.6 * Math.cos(2.6), 2.6 * Math.sin(2.6), 0).applyMatrix4(tor.matrixWorld);
-    const sw = (M.swing = { pivot: tip, L: tip.y - 0.65, th: 0, om: 0.4, seated: false });
-    const sg = new THREE.Group();
-    sg.position.copy(tip);
-    const ropeM = room(0xfff6dc, 0.6);
-    for (const sx of [-0.28, 0.28]) mesh(new THREE.CylinderGeometry(0.012, 0.012, sw.L, 6), ropeM, sx, -sw.L / 2, 0, sg);
-    mesh(new THREE.BoxGeometry(0.66, 0.05, 0.24), room(0xb98a5e, 0.25), 0, -sw.L, 0, sg);
-    sg.rotation.order = 'YXZ';
-    sg.rotation.y = 0.5;
-    g.add(sg);
-    sw.g = sg;
-    const SWF = v3(Math.sin(0.5), 0, Math.cos(0.5));
-    sw.fwd = SWF;
-    const seatPos = (v, up) => {
-      const r = sw.L - up;
-      return v.set(tip.x + SWF.x * Math.sin(sw.th) * r, tip.y - Math.cos(sw.th) * r, tip.z + SWF.z * Math.sin(sw.th) * r);
-    };
-    G.Tap.add(G.Tap.proxy(sg, 0.5, 0, -sw.L + 0.2, 0), 5, () => {
-      if (sw.seated) return;
-      sw.seated = true;
-      sw.om += 0.6;
-      G.Player.sit({
-        pos: (v) => seatPos(v, 0.62),
-        exit: { x: tip.x - SWF.x * 1.3, z: tip.z - SWF.z * 1.3 },
-        onLeave: () => { sw.seated = false; },
-        label: '在新月上荡秋千 · 拨动摇杆下来'
-      });
-      G.Audio.sfx('whoosh');
-    }, { hint: (v) => seatPos(v, 0).setY(1.4), hintDist: 8, enabled: () => M.on });
-
-    /* 月洞门：回草原的出口 */
-    const gate = new THREE.Group();
-    gate.position.copy(L(0, 0, -13));
-    const shape = new THREE.Shape();
-    shape.moveTo(-3, 0);
-    shape.lineTo(3, 0);
-    shape.lineTo(3, 3.6);
-    shape.lineTo(-3, 3.6);
-    shape.lineTo(-3, 0);
-    const hole = new THREE.Path();
-    hole.absarc(0, 1.75, 1.45, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-    const wall = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.4, bevelEnabled: false, curveSegments: 40 }), room(0xf0ece6, 0.25));
-    wall.position.z = -0.2;
-    gate.add(wall);
-    mesh(new THREE.BoxGeometry(6.4, 0.22, 0.6), room(0x3d5a66, 0.15), 0, 3.7, 0, gate);
-    const portal = new THREE.Mesh(new THREE.CircleGeometry(1.45, 48), new THREE.ShaderMaterial({
-      uniforms: { uTime: G.U.uTime },
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'uniform float uTime; varying vec2 vUv; void main(){ vec2 q = vUv - 0.5; float r = length(q) * 2.0; float a = atan(q.y, q.x); float sw = 0.5 + 0.5 * sin(a * 3.0 - uTime * 1.2 + r * 6.0); vec3 c = mix(vec3(0.55, 0.75, 1.0), vec3(1.0, 0.92, 0.7), sw * (1.0 - r)); float al = (0.35 + 0.45 * (1.0 - r)) * smoothstep(1.0, 0.92, r); gl_FragColor = vec4(c, al); }'
-    }));
-    portal.position.y = 1.75;
-    gate.add(portal);
-    const pgl = G.glow(0xcfe0ff, 6, 0.4);
-    pgl.position.set(0, 1.75, 0.2);
-    gate.add(pgl);
-    g.add(gate);
-    M.gate = L(0, 0, -13);
-    M.cols.rects.push({ x0: C.x - 3, x1: C.x - 1.45, z0: C.z - 13.25, z1: C.z - 12.75 }, { x0: C.x + 1.45, x1: C.x + 3, z0: C.z - 13.25, z1: C.z - 12.75 });
+    /* 建筑和小物件（moon2.js） */
+    M.buildParts(g);
+    M.pools.slice(0, 14).forEach((p, i) => M.poolU[i].set(p[0], p[1], p[2], p[3]));
 
     /* 草原上的引路光点：夜里从小屋后面一直延伸到月亮方向 */
     const sd = G.U.uSunDir.value, dir = new THREE.Vector2(sd.x, sd.z).normalize();
@@ -423,15 +342,18 @@ void main(){
   M.layer = (o) => o.traverse((c) => c.layers.enable(MOON_LAYER));
   function swapWorld(toMoon) {
     M.group.visible = toMoon;
+    const sun = M.lights.sun;
     if (toMoon) {
       M.layer(M.group);
       if (G.Cat) M.layer(G.Cat.root);
       for (const o of M.scene.children) if (o.isLight || o.userData.keep) o.layers.enable(MOON_LAYER);
       M.camera.layers.set(MOON_LAYER);
       G.Colliders = M.cols;
+      sun.position.copy(M.LIGHT).multiplyScalar(100);
     } else {
       M.camera.layers.set(0);
       G.Colliders = M.earthCols;
+      sun.position.copy(G.U.uSunDir.value).multiplyScalar(100);
     }
     M.on = toMoon;
     document.body.classList.toggle('moon', toMoon);
@@ -463,7 +385,7 @@ void main(){
       P.yaw = 0;
       P.pitch = 0.08;
       placeCat(C.x + 1.6, C.z + 19.5, Math.PI);
-      if (G.Cat) G.Cat.spots = [[C.x + 3.8, C.z + 2.8], [C.x + 5.4, C.z + 1.4], [C.x - 4.4, C.z + 0.5], [C.x + 1.5, C.z + 4.2]];
+      if (G.Cat) G.Cat.spots = [[C.x + 3.6, C.z + 4.6], [C.x + 5.6, C.z + 1.6], [C.x - 4.1, C.z + 1.9], [C.x + 1.6, C.z + 4.6], [C.x - 2.2, C.z + 9.5]];
       setTimeout(() => {
         fade(false);
         M.busy = false;
@@ -497,7 +419,6 @@ void main(){
   };
 
   /* ---------- 每帧 ---------- */
-  const tmp = v3(), m4u = new THREE.Matrix4();
   M.update = function (dt, t, P) {
     const nk = G.U.uNight.value;
     M.cool = Math.max(0, (M.cool || 0) - dt);
@@ -516,74 +437,14 @@ void main(){
     }
     // 月面上：灯光换成清冷的月色
     const Lg = M.lights;
-    Lg.hemi.color.setRGB(0.6, 0.66, 0.9);
-    Lg.hemi.groundColor.setRGB(0.32, 0.32, 0.42);
-    Lg.sun.color.setRGB(0.85, 0.88, 1.0);
-    Lg.fill.color.setRGB(0.4, 0.42, 0.6);
-    M.scene.fog.color.setRGB(0.08, 0.09, 0.2);
-    for (const gl of M.glows) gl.material.opacity = 0.45 + 0.1 * Math.sin(t * 3 + gl.position.x);
-    // 桂花飘落
-    const Pt = M.petals;
-    Pt.v.forEach((p, i) => {
-      p.y -= p.s * dt;
-      if (p.y < 0) {
-        p.y = 4.5 + Math.random();
-        p.a = Math.random() * 6.283;
-        p.r = Math.random() * 3.2;
-      }
-      Pt.p[i * 3] = Pt.ox + Math.cos(p.a) * p.r + Math.sin(t * 0.8 + p.ph) * 0.3;
-      Pt.p[i * 3 + 1] = p.y;
-      Pt.p[i * 3 + 2] = Pt.oz + Math.sin(p.a) * p.r + Math.cos(t * 0.7 + p.ph) * 0.3;
-    });
-    Pt.pts.geometry.attributes.position.needsUpdate = true;
-    // 玉兔：捣药，偶尔蹦一圈
-    const R = M.rabbit;
-    R.next -= dt;
-    R.happy = Math.max(0, (R.happy || 0) - dt);
-    if (!R.target && R.next <= 0) {
-      const a = Math.random() * 6.283;
-      R.target = [R.home.x + Math.cos(a) * 1.6, R.home.z + Math.sin(a) * 1.6];
-      R.back = true;
-    }
-    let pound = 0;
-    if (R.target) {
-      const dx = R.target[0] - R.x, dz = R.target[1] - R.z, d = Math.hypot(dx, dz);
-      R.heading = Math.atan2(dx, dz);
-      if (d < 0.08) {
-        if (R.back) {
-          R.target = [R.home.x, R.home.z];
-          R.back = false;
-        } else {
-          R.target = null;
-          R.next = 8 + Math.random() * 8;
-          R.heading = Math.PI + 0.3;
-        }
-      } else {
-        const s = Math.min(d, dt * 1.4);
-        R.x += (dx / d) * s;
-        R.z += (dz / d) * s;
-        R.t += dt * 7;
-      }
-    } else pound = 1;
-    R.hop = Math.max(0, R.hop - dt * 1.4);
-    const jump = R.target ? Math.abs(Math.sin(R.t)) * 0.28 : Math.sin(R.hop * Math.PI) * 0.45;
-    R.g.position.set(R.x, M.groundAt(R.x, R.z) + jump, R.z);
-    R.g.rotation.y = R.heading;
-    R.pestle.rotation.x = pound ? -0.6 + Math.abs(Math.sin(t * 4)) * 0.9 : -0.2;
-    R.head.rotation.x = pound ? 0.15 + Math.abs(Math.sin(t * 4)) * 0.08 : -0.1;
-    R.head.rotation.z = R.happy > 0 ? Math.sin(t * 10) * 0.15 : 0;
-    // 新月秋千
-    const sw = M.swing;
-    let acc = -(9.8 / 6 / sw.L) * Math.sin(sw.th) * 6 - (sw.seated ? 0.03 : 0.12) * sw.om;
-    if (sw.seated) {
-      const amp = Math.sqrt(sw.th * sw.th + (sw.om * sw.om) / (9.8 / sw.L));
-      if (amp < 0.45) acc += Math.sign(sw.om || 1) * 0.4;
-    }
-    sw.om += acc * dt;
-    sw.th += sw.om * dt;
-    sw.g.rotation.x = sw.th;
+    Lg.hemi.color.setRGB(0.44, 0.49, 0.72);
+    Lg.hemi.groundColor.setRGB(0.22, 0.22, 0.31);
+    Lg.sun.color.setRGB(0.74, 0.77, 0.88);
+    Lg.fill.color.setRGB(0.3, 0.32, 0.5);
+    M.scene.fog.color.copy(M.FOG);
+    M.animate(dt, t, P);
     // 走进月洞门就回草原
-    if (!M.busy && Math.abs(P.z - M.gate.z) < 0.6 && Math.abs(P.x - M.gate.x) < 1.2) M.exit();
+    if (!M.busy && Math.abs(P.z - M.gate.z) < 0.6 && Math.abs(P.x - M.gate.x) < 1.0) M.exit();
     // 月亮上的边界
     const dx = P.x - C.x, dz = P.z - C.z, d = Math.hypot(dx, dz);
     if (d > M.R) {
