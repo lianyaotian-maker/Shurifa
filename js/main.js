@@ -367,9 +367,95 @@
     const d = new Date(s);
     return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
+  // 附图：选一张照片 → 压缩 → 在写字框下面显示小图，可以点 × 去掉
+  const bdPick = $('bdPick'), bdFile = $('bdFile'), bdPrev = $('bdPrev'), bdView = $('bdView');
+  let bdImg = null;
+  function bdShowPick() {
+    bdPick.hidden = G.Board.images !== true;
+  }
+  function bdSetImg(d) {
+    bdImg = d;
+    bdPrev.innerHTML = '';
+    bdPrev.hidden = !d;
+    if (!d) return;
+    const im = document.createElement('img');
+    im.src = d;
+    im.alt = '要附上的图片';
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '×';
+    x.setAttribute('aria-label', '不附这张图了');
+    x.addEventListener('click', () => bdSetImg(null));
+    bdPrev.append(im, x);
+  }
+  bdPick.addEventListener('click', () => bdFile.click());
+  bdFile.addEventListener('change', async () => {
+    const f = bdFile.files && bdFile.files[0];
+    bdFile.value = '';
+    if (!f) return;
+    bdState.textContent = '正在处理图片…';
+    try {
+      bdSetImg(await G.Board.compress(f));
+      bdState.textContent = '';
+    } catch (e) {
+      bdState.textContent = '这张图片打不开，换一张试试';
+    }
+  });
+  // 看大图
+  function bdOpenView(src) {
+    bdView.innerHTML = '';
+    const im = document.createElement('img');
+    im.src = src;
+    im.alt = '留言里的图片';
+    bdView.appendChild(im);
+    bdView.hidden = false;
+  }
+  bdView.addEventListener('click', () => { bdView.hidden = true; });
+  // 图片滚到眼前才去取
+  const bdIO = typeof IntersectionObserver === 'function' ? new IntersectionObserver((es) => {
+    for (const e of es) if (e.isIntersecting) { bdIO.unobserve(e.target); bdFetchImg(e.target); }
+  }, { root: bdList, rootMargin: '200px 0px' }) : null;
+  function bdFetchImg(box) {
+    box.textContent = '图片加载中…';
+    box.classList.remove('err');
+    G.Board.image(box.dataset.id).then((d) => {
+      box.textContent = '';
+      if (!d) { box.textContent = '图片不见了'; return; }
+      const im = document.createElement('img');
+      im.src = d;
+      im.alt = '留言里的图片';
+      box.appendChild(im);
+      box.classList.add('ok');
+    }).catch(() => {
+      box.textContent = '图片没加载出来，点一下再试试';
+      box.classList.add('err');
+    });
+  }
+  function bdImgBox(r) {
+    const box = document.createElement('div');
+    box.className = 'bd-img';
+    if (r.pending) {
+      const im = document.createElement('img');
+      im.src = r.image;
+      im.alt = '等待寄出的图片';
+      box.appendChild(im);
+      box.classList.add('ok');
+    } else {
+      box.dataset.id = r.id;
+      box.textContent = '图片';
+      if (bdIO) bdIO.observe(box);
+      else bdFetchImg(box);
+    }
+    box.addEventListener('click', () => {
+      const im = box.querySelector('img');
+      if (im) bdOpenView(im.src);
+      else if (box.classList.contains('err')) bdFetchImg(box);
+    });
+    return box;
+  }
   // 待寄的留言也显示在最上面，标上“等待寄出”
   function bdRender(rows) {
-    const pend = G.Board.pending().slice().reverse().map((m) => ({ name: m.name, body: m.body, created_at: new Date(m.t).toISOString(), pending: true }));
+    const pend = G.Board.pending().slice().reverse().map((m) => ({ name: m.name, body: m.body, image: m.image, has_image: !!m.image, created_at: new Date(m.t).toISOString(), pending: true }));
     rows = pend.concat(rows || []);
     bdList.innerHTML = '';
     if (!rows.length) {
@@ -385,9 +471,13 @@
       const h = document.createElement('div');
       h.className = 'bd-meta';
       h.textContent = (r.name || '无名的旅人') + ' · ' + fmtDate(r.created_at) + (r.pending ? ' · 等待寄出' : '');
-      const b = document.createElement('p');
-      b.textContent = r.body;
-      it.append(h, b);
+      it.appendChild(h);
+      if (r.body) {
+        const b = document.createElement('p');
+        b.textContent = r.body;
+        it.appendChild(b);
+      }
+      if (r.has_image) it.appendChild(bdImgBox(r));
       bdList.appendChild(it);
     }
   }
@@ -409,6 +499,7 @@
     if (!quiet) bdState.textContent = '正在取信…（网络慢的话要等一会儿）';
     try {
       const rows = await G.Board.list();
+      bdShowPick();
       bdRender((bdRows = rows));
       bdState.textContent = '';
       if (G.Board.pending().length && (await G.Board.flush(rows))) {
@@ -426,26 +517,29 @@
   }
   let lastSend = 0;
   bdSend.addEventListener('click', async () => {
-    const body = bdText.value.trim(), name = bdName.value.trim().slice(0, 20);
-    if (!body) { bdState.textContent = '先写点什么吧'; return; }
+    const body = bdText.value.trim().slice(0, 300), name = bdName.value.trim().slice(0, 20), image = bdImg;
+    if (!body && !image) { bdState.textContent = '先写点什么吧'; return; }
     if (Date.now() - lastSend < 15000) { bdState.textContent = '慢一点，过几秒再写下一条'; return; }
     bdSend.disabled = true;
-    bdState.textContent = '正在寄出…';
+    bdState.textContent = image ? '正在寄出（带着图片，要稍等一会儿）…' : '正在寄出…';
     store.set('grass-house-name', name);
     lastSend = Date.now();
     try {
-      await G.Board.send(name, body.slice(0, 300));
+      await G.Board.send(name, body, image);
       bdText.value = '';
+      bdSetImg(null);
       bdState.textContent = '已经挂在留言板上了';
       G.Audio.sfx('paper');
       await bdLoad(true);
       bdState.textContent = '已经挂在留言板上了';
     } catch (e) {
-      // 寄不出去：先存在手机里，网络好了自动寄出
-      G.Board.queue(name, body.slice(0, 300));
-      bdText.value = '';
-      bdRender(bdRows || []);
-      bdState.textContent = '网络不太好，先帮你存着了，连上以后会自动挂上去';
+      // 寄不出去：先存在手机里，网络好了自动寄出（图片太大存不下时，写的字和图片都留在框里）
+      if (G.Board.queue(name, body, image)) {
+        bdText.value = '';
+        bdSetImg(null);
+        bdRender(bdRows || []);
+        bdState.textContent = '网络不太好，先帮你存着了，连上以后会自动挂上去';
+      } else bdState.textContent = '网络不太好，没寄出去，写的内容还在，过一会儿再点“挂上去”';
       if (!bdEl.hidden) bdRetry = setTimeout(() => { if (!bdEl.hidden) bdLoad(true); }, 20000);
     }
     bdSend.disabled = false;
@@ -462,6 +556,7 @@
   window.addEventListener('online', bdFlushQuiet);
   function closeBd() {
     clearTimeout(bdRetry);
+    bdView.hidden = true;
     bdEl.classList.remove('on');
     setTimeout(() => { if (!bdEl.classList.contains('on')) bdEl.hidden = true; }, 400);
     G.Player.enabled = true;
@@ -472,6 +567,7 @@
     board() {
       // 画面比较窄（竖着、小屏）时上下排，宽的时候左右分栏
       bdEl.classList.toggle('narrow', G.view.w < 640);
+      bdShowPick();
       bdEl.hidden = false;
       G.Player.enabled = false;
       G.Player.jx = G.Player.jy = 0;

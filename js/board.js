@@ -3,7 +3,9 @@
    - 请求不带自定义请求头（钥匙放在网址里），浏览器不用先发一次“预检”，慢网络下少等一个来回；连不上会自动再试
    - 上次读到的留言记在手机里，打开就先显示
    - 网站上还有一份定时保存的备份 board.json（和网页放在一起，网页能打开它就能打开）
-   - 寄不出去的留言先存在手机里，网络好了自动寄出，不会丢 */
+   - 寄不出去的留言先存在手机里，网络好了自动寄出，不会丢
+   附图：手机上先把照片压成 JPEG（最长边 1280 像素，几百 KB 以内，顺便去掉拍摄地点等信息），
+   和留言存在同一条里；列表只取文字，图片滚到眼前才单独加载 */
 (function () {
   'use strict';
   const B = {};
@@ -13,9 +15,12 @@
   const key = () => encodeURIComponent(cfg().supabaseKey);
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 无痕模式等 */ } }
+    // 存不下（比如空间满了）时返回 false
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
   };
   const CACHE = 'grass-house-board-cache', OUTBOX = 'grass-house-board-outbox';
+  // 数据库里有没有图片那一栏（还没加的话就不显示附图按钮）
+  B.images = null;
 
   async function req(url, opt, ms) {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
@@ -30,17 +35,25 @@
 
   /* ---------- 读 ---------- */
   B.list = async function () {
-    const url = base() + '?select=id,created_at,name,body&order=created_at.desc&limit=200&apikey=' + key();
-    let err;
-    for (const ms of [15000, 25000]) {
+    let err, tries = 0;
+    while (tries < 2) {
+      const ms = tries ? 25000 : 15000;
       try {
-        const r = await req(url, {}, ms);
+        const cols = 'id,created_at,name,body' + (B.images === false ? '' : ',has_image');
+        const r = await req(base() + '?select=' + cols + '&order=created_at.desc&limit=200&apikey=' + key(), {}, ms);
+        if (r.status === 400 && B.images !== false) {
+          // 还没有图片那一栏：先按只有文字的方式读
+          B.images = false;
+          continue;
+        }
         if (!r.ok) throw new Error('list ' + r.status);
         const rows = await r.json();
+        if (B.images === null) B.images = true;
         store.set(CACHE, { at: new Date().toISOString(), rows });
         return rows;
       } catch (e) {
         err = e;
+        tries++;
       }
     }
     throw err;
@@ -58,23 +71,81 @@
       return null;
     }
   };
+  // 单独取一条留言的图片（取过的记在内存里）
+  const imgs = new Map();
+  B.image = function (id) {
+    if (!imgs.has(id)) {
+      const p = (async () => {
+        for (const ms of [20000, 30000]) {
+          try {
+            const r = await req(base() + '?select=image&id=eq.' + encodeURIComponent(id) + '&apikey=' + key(), {}, ms);
+            if (!r.ok) continue;
+            const row = (await r.json())[0];
+            return row && row.image ? row.image : null;
+          } catch (e) { /* 再试一次 */ }
+        }
+        throw new Error('image');
+      })();
+      imgs.set(id, p);
+      p.catch(() => imgs.delete(id));
+    }
+    return imgs.get(id);
+  };
+
+  /* ---------- 图片压缩 ---------- */
+  // 读进照片 → 缩到最长边 1280（还大就 960）→ 压成 JPEG，直到 data URL 不超过约 400 KB
+  B.compress = function (file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const im = new Image();
+      im.onload = () => {
+        URL.revokeObjectURL(url);
+        try {
+          for (const max of [1280, 960, 720]) {
+            const s = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+            const w = Math.max(1, Math.round(im.naturalWidth * s)), h = Math.max(1, Math.round(im.naturalHeight * s));
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            const x = c.getContext('2d');
+            x.fillStyle = '#fff'; // 透明的图片铺白底
+            x.fillRect(0, 0, w, h);
+            x.drawImage(im, 0, 0, w, h);
+            for (const q of [0.82, 0.72, 0.62, 0.52]) {
+              const d = c.toDataURL('image/jpeg', q);
+              if (d.length <= 400000) return resolve(d);
+            }
+          }
+          reject(new Error('too big'));
+        } catch (e) {
+          reject(e);
+        }
+      };
+      im.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('decode'));
+      };
+      im.src = url;
+    });
+  };
 
   /* ---------- 写 ---------- */
   // 用表单格式提交，也不需要预检
-  B.send = async function (name, body) {
+  B.send = async function (name, body, image) {
     const f = new URLSearchParams();
     if (name) f.set('name', name);
-    f.set('body', body);
-    const r = await req(base() + '?apikey=' + key(), { method: 'POST', body: f }, 25000);
+    f.set('body', body || '');
+    if (image) f.set('image', image);
+    const r = await req(base() + '?apikey=' + key(), { method: 'POST', body: f }, image ? 45000 : 25000);
     if (!r.ok) throw new Error('send ' + r.status);
     return true;
   };
-  // 寄不出去的先放进“待寄”
+  // 寄不出去的先放进“待寄”；手机里存不下时返回 false
   B.pending = () => store.get(OUTBOX) || [];
-  B.queue = function (name, body) {
+  B.queue = function (name, body, image) {
     const q = B.pending();
-    q.push({ name: name || null, body, t: Date.now() });
-    store.set(OUTBOX, q);
+    q.push({ name: name || null, body: body || '', image: image || null, t: Date.now() });
+    return store.set(OUTBOX, q);
   };
   // 把待寄的寄出去。rows 是刚从数据库读到的留言：如果某条其实已经寄到了（只是当时没收到回应），就不再重复寄
   let flushing = false;
@@ -86,10 +157,10 @@
     let sent = 0;
     try {
       for (const m of q.slice()) {
-        const already = (rows || []).some((r) => r.body === m.body && (r.name || null) === m.name && Date.parse(r.created_at) > m.t - 120000);
+        const already = (rows || []).some((r) => r.body === m.body && (r.name || null) === m.name && !!r.has_image === !!m.image && Date.parse(r.created_at) > m.t - 120000);
         if (!already) {
           try {
-            await B.send(m.name, m.body);
+            await B.send(m.name, m.body, m.image);
           } catch (e) {
             break; // 还是寄不出去，下次再说
           }

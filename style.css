@@ -431,6 +431,17 @@ body.moon #datebar, body.moon #dn { visibility: hidden; }
 #bdText { flex: 1; min-height: 96px; resize: none; line-height: 1.55; }
 .bd-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #bdState { font-size: 13px; color: #8a6a96; }
+#bdState { flex: 1; min-width: 0; }
+#bdPick { padding: 8px 14px; border-radius: 16px; border: 1px dashed rgba(90, 58, 106, 0.5); background: rgba(255, 255, 255, 0.7); color: #5a3a6a; font-size: 15px; letter-spacing: 0.08em; }
+#bdPrev { position: relative; align-self: flex-start; }
+#bdPrev img { display: block; max-height: 96px; max-width: 180px; border-radius: 10px; box-shadow: 0 1px 4px rgba(60, 40, 80, 0.25); }
+#bdPrev button { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: none; background: #5a3a6a; color: #fff; font-size: 16px; line-height: 26px; padding: 0; }
+.bd-img { margin-top: 8px; min-height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #f1ecf4; color: #8a7a96; font-size: 13px; cursor: pointer; }
+.bd-img.ok { background: none; min-height: 0; justify-content: flex-start; }
+.bd-img img { display: block; max-width: 100%; max-height: 240px; border-radius: 10px; }
+#bdView { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(10, 8, 24, 0.88); }
+#bdView[hidden] { display: none; }
+#bdView img { max-width: 100%; max-height: 100%; border-radius: 8px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
 #board.narrow .bd-body { flex-direction: column; gap: 10px; }
 #board.narrow #bdList { flex: 1; }
 #board.narrow .bd-form { flex: none; }

@@ -68,10 +68,12 @@
     <div class="bd-form">
       <input id="bdName" maxlength="20" placeholder="署名（可以不写）" autocomplete="off">
       <textarea id="bdText" maxlength="300" rows="3" placeholder="想说点什么？写下来挂在留言板上"></textarea>
-      <div class="bd-foot"><span id="bdState" aria-live="polite"></span><button id="bdSend">挂上去</button></div>
+      <div id="bdPrev" hidden></div>
+      <div class="bd-foot"><button id="bdPick" type="button" hidden>附图</button><input id="bdFile" type="file" accept="image/*" hidden><span id="bdState" aria-live="polite"></span><button id="bdSend">挂上去</button></div>
     </div>
     </div>
   </div>
+  <div id="bdView" hidden role="button" aria-label="点一下收起大图"></div>
 </div>
 <div id="toast" aria-live="polite"></div>
 <div id="moonfade" aria-hidden="true"></div>
