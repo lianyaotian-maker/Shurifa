@@ -362,7 +362,10 @@
     const d = new Date(s);
     return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
+  // 待寄的留言也显示在最上面，标上“等待寄出”
   function bdRender(rows) {
+    const pend = G.Board.pending().slice().reverse().map((m) => ({ name: m.name, body: m.body, created_at: new Date(m.t).toISOString(), pending: true }));
+    rows = pend.concat(rows || []);
     bdList.innerHTML = '';
     if (!rows.length) {
       const p = document.createElement('p');
@@ -373,17 +376,20 @@
     }
     for (const r of rows) {
       const it = document.createElement('div');
-      it.className = 'bd-note';
+      it.className = 'bd-note' + (r.pending ? ' pending' : '');
       const h = document.createElement('div');
       h.className = 'bd-meta';
-      h.textContent = (r.name || '无名的旅人') + ' · ' + fmtDate(r.created_at);
+      h.textContent = (r.name || '无名的旅人') + ' · ' + fmtDate(r.created_at) + (r.pending ? ' · 等待寄出' : '');
       const b = document.createElement('p');
       b.textContent = r.body;
       it.append(h, b);
       bdList.appendChild(it);
     }
   }
-  async function bdLoad() {
+  // 读留言：先显示手机里记着的；再连数据库；连不上就看网站上的备份，过一会儿自动再试
+  let bdRetry = 0, bdRows = null;
+  async function bdLoad(quiet) {
+    clearTimeout(bdRetry);
     if (!G.Board.ready()) {
       bdState.textContent = '留言板还在布置中，暂时不能留言';
       bdSend.disabled = true;
@@ -391,36 +397,66 @@
       bdList.firstChild.textContent = '留言板还没有连接好。';
       return;
     }
-    bdState.textContent = '正在取信…';
+    if (!bdRows) {
+      const c = G.Board.cached();
+      if (c) bdRender((bdRows = c.rows));
+    }
+    if (!quiet) bdState.textContent = '正在取信…（网络慢的话要等一会儿）';
     try {
-      bdRender(await G.Board.list());
+      const rows = await G.Board.list();
+      bdRender((bdRows = rows));
       bdState.textContent = '';
+      if (G.Board.pending().length && (await G.Board.flush(rows))) {
+        bdState.textContent = '之前没寄出的留言已经挂上去了';
+        bdRender((bdRows = await G.Board.list().catch(() => bdRows)));
+      }
     } catch (e) {
-      bdState.textContent = '暂时连不上留言板，过一会儿再试试';
+      if (!bdRows) {
+        const snap = await G.Board.snapshot();
+        if (snap) bdRender((bdRows = snap.rows));
+      }
+      bdState.textContent = bdRows ? '网络不太好，先给你看之前的留言，正在自动重连…' : '暂时连不上留言板，正在自动重连…';
+      if (!bdEl.hidden) bdRetry = setTimeout(() => { if (!bdEl.hidden) bdLoad(true); }, 20000);
     }
   }
   let lastSend = 0;
   bdSend.addEventListener('click', async () => {
-    const body = bdText.value.trim(), name = bdName.value.trim();
+    const body = bdText.value.trim(), name = bdName.value.trim().slice(0, 20);
     if (!body) { bdState.textContent = '先写点什么吧'; return; }
     if (Date.now() - lastSend < 15000) { bdState.textContent = '慢一点，过几秒再写下一条'; return; }
     bdSend.disabled = true;
     bdState.textContent = '正在寄出…';
+    store.set('grass-house-name', name);
+    lastSend = Date.now();
     try {
-      await G.Board.send(name.slice(0, 20), body.slice(0, 300));
-      lastSend = Date.now();
-      store.set('grass-house-name', name);
+      await G.Board.send(name, body.slice(0, 300));
       bdText.value = '';
       bdState.textContent = '已经挂在留言板上了';
       G.Audio.sfx('paper');
-      await bdLoad();
+      await bdLoad(true);
       bdState.textContent = '已经挂在留言板上了';
     } catch (e) {
-      bdState.textContent = '没寄出去，检查一下网络再试试（写的内容还在）';
+      // 寄不出去：先存在手机里，网络好了自动寄出
+      G.Board.queue(name, body.slice(0, 300));
+      bdText.value = '';
+      bdRender(bdRows || []);
+      bdState.textContent = '网络不太好，先帮你存着了，连上以后会自动挂上去';
+      if (!bdEl.hidden) bdRetry = setTimeout(() => { if (!bdEl.hidden) bdLoad(true); }, 20000);
     }
     bdSend.disabled = false;
   });
+  // 打开网页时、网络恢复时，悄悄把待寄的留言寄出去
+  async function bdFlushQuiet() {
+    if (!G.Board.ready() || !G.Board.pending().length) return;
+    try {
+      const rows = await G.Board.list();
+      await G.Board.flush(rows);
+    } catch (e) { /* 下次再试 */ }
+  }
+  setTimeout(bdFlushQuiet, 8000);
+  window.addEventListener('online', bdFlushQuiet);
   function closeBd() {
+    clearTimeout(bdRetry);
     bdEl.classList.remove('on');
     setTimeout(() => { if (!bdEl.classList.contains('on')) bdEl.hidden = true; }, 400);
     G.Player.enabled = true;

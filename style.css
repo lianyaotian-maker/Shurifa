@@ -420,6 +420,8 @@ body.moon #datebar, body.moon #dn { visibility: hidden; }
 .bd-note { padding: 8px 12px; border-radius: 10px; background: #fff; box-shadow: 0 1px 3px rgba(60, 40, 80, 0.12); }
 .bd-note p { margin: 3px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .bd-meta { font-size: 11px; color: #8a7a96; }
+.bd-note.pending { background: #fbf7ff; box-shadow: none; outline: 1px dashed rgba(120, 90, 150, 0.45); }
+.bd-note.pending .bd-meta { color: #a0709a; }
 .bd-empty { margin: 8px 0; font-size: 13px; color: #8a7a96; text-align: center; }
 .bd-form { display: flex; flex-direction: column; gap: 6px; }
 #bdName, #bdText { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 10px; border: 1px solid #d8cfe0; background: #fff; color: #2e2a3e; font: inherit; font-size: 14px; }
