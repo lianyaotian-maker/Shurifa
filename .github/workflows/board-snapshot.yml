@@ -1,0 +1,61 @@
+# 草原小屋 · 留言板备份：每 20 分钟把留言存一份到网站上，国内连不上数据库时网页先显示这份。只读，不改数据库。
+name: Board snapshot
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+
+concurrency:
+  group: board-snapshot
+  cancel-in-progress: false
+
+env:
+  SITE_BRANCH: claude/practical-archimedes-tdkk0a
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SITE_BRANCH }}
+
+      - name: Read the messages
+        run: |
+          curl -sS --fail --max-time 30 -o /tmp/rows.json \
+            "https://cfmwjckfjddjxpnexomo.supabase.co/rest/v1/messages?select=id,created_at,name,body&order=created_at.desc&limit=200&apikey=sb_publishable_xE5zxI7PTUFAFGNnH1wMhA_buM1tsUI"
+          python3 - <<'PY'
+          import json, datetime
+          rows = json.load(open('/tmp/rows.json'))
+          try:
+              old = json.load(open('board.json'))['rows']
+          except Exception:
+              old = None
+          if rows == old:
+              print('No new messages')
+          else:
+              at = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+              json.dump({'at': at, 'rows': rows}, open('board.json', 'w'), ensure_ascii=False)
+              print('Saved', len(rows), 'messages')
+          PY
+
+      - name: Publish the copy if it changed
+        run: |
+          if git diff --quiet -- board.json; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add board.json
+          git commit -m "Update message board backup"
+          for i in 1 2 3; do
+            git push origin "HEAD:$SITE_BRANCH" && break
+            git pull --rebase origin "$SITE_BRANCH"
+          done
+          curl -sS -X POST -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages/builds" || true
