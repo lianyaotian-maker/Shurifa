@@ -170,11 +170,15 @@
   stepper($('next'), 1);
   // 日夜开关
   const dnBtn = $('dn');
-  dnBtn.addEventListener('click', () => {
-    const night = G.Night.toggle() > 0.5;
+  function syncDn() {
+    const night = G.Night.target > 0.5;
     dnBtn.classList.toggle('night', night);
     dnBtn.setAttribute('aria-label', night ? '回到黄昏' : '进入夜晚');
     dnBtn.setAttribute('aria-pressed', String(night));
+  }
+  dnBtn.addEventListener('click', () => {
+    G.Night.toggle();
+    syncDn();
     G.Audio.sfx('heart', 0.6);
   });
 
@@ -465,6 +469,11 @@
   bdEl.addEventListener('click', (e) => { if (e.target === bdEl || e.target.id === 'bdClose') closeBd(); });
   G.UI = {
     toast,
+    // 别的地方需要天黑时（比如萤火虫要在夜空里拼字）
+    night() {
+      G.Night.target = 1;
+      syncDn();
+    },
     board() {
       // 画面比较窄（竖着、小屏）时上下排，宽的时候左右分栏
       bdEl.classList.toggle('narrow', G.view.w < 640);

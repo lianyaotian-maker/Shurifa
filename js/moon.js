@@ -414,7 +414,8 @@ void main(){
       M.beam.material.uniforms.uAmt.value = amt;
       M.guide.visible = M.beam.visible = amt > 0.01;
       if (amt > 0.9 && !M.cool && Math.hypot(P.x - M.door.x, P.z - M.door.y) < 2.6) M.enter();
-      if (amt > 0.9 && !M.told) {
+      // 萤火虫在夜空拼字时先不打扰，等字散了再提示
+      if (amt > 0.9 && !M.told && !(G.Fireflies && G.Fireflies.state === 'text')) {
         M.told = true;
         setTimeout(() => { if (!M.on && !M.busy && G.U.uNight.value > 0.5) G.UI.toast('月亮好像在召唤你……顺着光点朝它走走看'); }, 2500);
       }

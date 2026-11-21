@@ -40,8 +40,8 @@ float windWave(vec2 p){
   return sin(a * 0.21 - uTime * 1.2 + sin(b * 0.06) * 2.0) * 0.62 + sin(a * 0.57 - uTime * 2.0 + b * 0.13) * 0.38;
 }
 float shadowAt(vec4 f){ return max(f.b, f.a * uFoliage); }
-// 夜里手里提着的小灯笼照亮身边一小片
-vec3 lanternAt(vec3 p){ vec3 d = p - uLantern.xyz; return vec3(1.0, 0.7, 0.38) * (uLantern.w / (1.0 + dot(d, d) * 0.85)); }
+// 萤火虫的光照亮身边一小片（黄绿色）
+vec3 lanternAt(vec3 p){ vec3 d = p - uLantern.xyz; return vec3(0.78, 1.0, 0.5) * (uLantern.w / (1.0 + dot(d, d) * 0.4)); }
 // 被踩倒的草：鸡柳和你脚下各一小圈（xy 位置、z 半径、w 程度）
 uniform vec4 uPress[2];
 vec3 pressAt(vec2 p){
