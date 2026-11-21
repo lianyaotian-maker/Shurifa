@@ -979,16 +979,11 @@
     const lamp = G.glow(0xffc070, 1.6, 0.2);
     lamp.position.set(1.02, 1.82, 0.3);
     bg.add(lamp);
-    // 右边一根高木墩（高出草丛），上面放萤火虫瓶
-    A.add(cyl(0.16, 0.2, 0.86, 12), at(1.38, 0.41, 0.42), 'bark', COL.bark);
-    A.add(cyl(0.155, 0.155, 0.012, 16), at(1.38, 0.84, 0.42), 'paint', COL.woodL);
     const cs = o.cols.circles;
     cs.push({ x: bx - Math.cos(ry) * 0.6, z: bz + Math.sin(ry) * 0.6, r: 0.4 }, { x: bx, z: bz, r: 0.4 }, { x: bx + Math.cos(ry) * 0.6, z: bz - Math.sin(ry) * 0.6, r: 0.4 });
     bg.updateMatrixWorld(true);
-    const jar = bg.localToWorld(v3(1.38, 0.846, 0.42));
-    cs.push({ x: jar.x, z: jar.z, r: 0.25 });
     G.Tap.add(G.Tap.proxy(bg, 0.8, 0, 1.3, 0), 5, () => G.UI.board(), { hint: bg.localToWorld(v3(0, 2.65, 0)), hintDist: 9, enabled: o.enabled });
-    return { group: bg, lamp, jar };
+    return { group: bg, lamp };
   }
 
   /* ================= 玉兔和药臼 ================= */

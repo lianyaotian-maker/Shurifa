@@ -469,11 +469,6 @@
   bdEl.addEventListener('click', (e) => { if (e.target === bdEl || e.target.id === 'bdClose') closeBd(); });
   G.UI = {
     toast,
-    // 别的地方需要天黑时（比如萤火虫要在夜空里拼字）
-    night() {
-      G.Night.target = 1;
-      syncDn();
-    },
     board() {
       // 画面比较窄（竖着、小屏）时上下排，宽的时候左右分栏
       bdEl.classList.toggle('narrow', G.view.w < 640);
