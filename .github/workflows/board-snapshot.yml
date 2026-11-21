@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SITE_BRANCH: claude/practical-archimedes-tdkk0a
+  SITE_BRANCH: main
 
 jobs:
   snapshot:

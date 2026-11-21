@@ -1,0 +1,53 @@
+草原小屋 · 声音素材致谢 / Sound credits
+
+All recordings are from Wikimedia Commons and were trimmed, filtered and
+normalized for this page.
+
+Cat (鸡柳)
+- "Meow of a pleading cat.oga" by Heismark — Public domain
+  https://commons.wikimedia.org/wiki/File:Meow_of_a_pleading_cat.oga
+- "Purring cat.oga" by Mysid — Public domain
+  https://commons.wikimedia.org/wiki/File:Purring_cat.oga
+
+Footsteps
+- "Walking on grass (Gravity Sound).wav" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_on_grass_(Gravity_Sound).wav
+- "Walking on small wooden bridge (Gravity Sound).wav" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_on_small_wooden_bridge_(Gravity_Sound).wav
+- "Walking through leaves (Gravity Sound).wav" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_through_leaves_(Gravity_Sound).wav
+- "Walking on gravel (Gravity Sound).mp3" by Gravity Sound — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Walking_on_gravel_(Gravity_Sound).mp3
+
+Ambience
+- "Wind in Swedish pine forest at 25 mps.ogg" by W.carter — CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Wind_in_Swedish_pine_forest_at_25_mps.ogg
+- "Audio Hörbild Grillenzirpen - nachts um 3 im Föhrenwald Mödling.ogg" by DrTrumpet — CC BY-SA 4.0
+  https://commons.wikimedia.org/wiki/File:Audio_Hörbild_Grillenzirpen_-_nachts_um_3_im_Föhrenwald_Mödling.ogg
+- "Waidachswald Oberschefflenz Abend 20250616 2005.ogg" — CC0
+  https://commons.wikimedia.org/wiki/File:Waidachswald_Oberschefflenz_Abend_20250616_2005.ogg
+  The trimmed loops sounds/amb_wind.mp3 and sounds/amb_crickets.mp3 are
+  adaptations of these recordings and are shared under the same license.
+
+Moon (月中世界)
+- "Windglockenspiel.Koshi.ogg" by Membeth — CC0
+  https://commons.wikimedia.org/wiki/File:Windglockenspiel.Koshi.ogg
+  (sounds/amb_moon.mp3: trimmed, denoised, gently compressed)
+- "Sound recording of a hand-forged Nepalese Full Moon singing bowl (346.3 Hz, F4).wav"
+  by JAMBATI eu — CC BY 4.0
+  https://commons.wikimedia.org/wiki/File:Sound_recording_of_a_hand-forged_Nepalese_Full_Moon_singing_bowl_(346.3_Hz,_F4).wav
+  (sounds/bowl_fullmoon.mp3: first strike only, trimmed and normalized)
+- Moon footsteps reuse the wooden-bridge and gravel recordings above,
+  re-pitched and filtered (stone and lunar dust).
+
+Fonts
+- Great Vibes (fonts/GreatVibes.woff2) — SIL Open Font License 1.1, see fonts/GreatVibes-OFL.txt
+
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+CC BY-SA 4.0: https://creativecommons.org/licenses/by-sa/4.0/
+
+Music box songs (song1–4.mp3: 安静, 彩虹, 稻香, 讴歌) were provided by the page's
+owner.
+
+Everything else (chimes, music box, the rabbit's pestle, shooting stars and
+other small effects) is synthesized in the browser.
