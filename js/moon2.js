@@ -923,12 +923,13 @@
   }
 
   /* ================= 留言板 ================= */
-  function board(A, tex, rnd) {
-    const bx = -5.2, bz = 0.6, ry = 0.9;
+  // o: 世界坐标 x/y/z、朝向 ry、放进哪个 parent、碰撞体加到哪、什么时候能点
+  function board(A, tex, rnd, o) {
+    const bx = o.x, bz = o.z, ry = o.ry;
     const bg = new THREE.Group();
-    bg.position.set(C.x + bx, 0, C.z + bz);
+    bg.position.set(bx, o.y, bz);
     bg.rotation.y = ry;
-    M.group.add(bg);
+    o.parent.add(bg);
     bg.updateMatrix();
     const BM = bg.matrix.clone();
     const at = (x, y, z, rx, rry, rz, s) => T(x, y, z, rx, rry, rz, s, BM);
@@ -970,8 +971,24 @@
       A.add(box(0.09, 0.15, 0.014), at(x, 0.66 - l - 0.075, 0.03, 0, 0, (rnd() - 0.5) * 0.2), 'paint', COL.woodL);
       A.add(cyl(0.006, 0.01, 0.1, 4), at(x, 0.66 - l - 0.2, 0.03), 'paint', COL.red);
     }
-    M.cols.circles.push({ x: C.x + bx - Math.cos(ry) * 0.6, z: C.z + bz + Math.sin(ry) * 0.6, r: 0.4 }, { x: C.x + bx, z: C.z + bz, r: 0.4 }, { x: C.x + bx + Math.cos(ry) * 0.6, z: C.z + bz - Math.sin(ry) * 0.6, r: 0.4 });
-    G.Tap.add(G.Tap.proxy(bg, 0.8, 0, 1.3, 0), 5, () => G.UI.board(), { hint: L(bx, 2.65, bz), hintDist: 7, enabled: () => M.on });
+    // 屋檐右边挂一盏小灯，夜里远远就能看见
+    A.add(cyl(0.004, 0.004, 0.16, 3), at(1.02, 2.0, 0.3), 'gold', COL.gold);
+    A.add(lathe([[0, -0.1], [0.05, -0.09], [0.075, -0.04], [0.078, 0], [0.075, 0.04], [0.05, 0.09], [0, 0.1]], 10), at(1.02, 1.82, 0.3), 'glow', [1, 0.7, 0.42]);
+    A.add(cyl(0.04, 0.045, 0.02, 10), at(1.02, 1.93, 0.3), 'gold', COL.gold);
+    A.add(cyl(0.045, 0.04, 0.02, 10), at(1.02, 1.71, 0.3), 'gold', COL.gold);
+    const lamp = G.glow(0xffc070, 1.6, 0.2);
+    lamp.position.set(1.02, 1.82, 0.3);
+    bg.add(lamp);
+    // 右边一根高木墩（高出草丛），上面放萤火虫瓶
+    A.add(cyl(0.16, 0.2, 0.86, 12), at(1.38, 0.41, 0.42), 'bark', COL.bark);
+    A.add(cyl(0.155, 0.155, 0.012, 16), at(1.38, 0.84, 0.42), 'paint', COL.woodL);
+    const cs = o.cols.circles;
+    cs.push({ x: bx - Math.cos(ry) * 0.6, z: bz + Math.sin(ry) * 0.6, r: 0.4 }, { x: bx, z: bz, r: 0.4 }, { x: bx + Math.cos(ry) * 0.6, z: bz - Math.sin(ry) * 0.6, r: 0.4 });
+    bg.updateMatrixWorld(true);
+    const jar = bg.localToWorld(v3(1.38, 0.846, 0.42));
+    cs.push({ x: jar.x, z: jar.z, r: 0.25 });
+    G.Tap.add(G.Tap.proxy(bg, 0.8, 0, 1.3, 0), 5, () => G.UI.board(), { hint: bg.localToWorld(v3(0, 2.65, 0)), hintDist: 9, enabled: o.enabled });
+    return { group: bg, lamp, jar };
   }
 
   /* ================= 玉兔和药臼 ================= */
@@ -1261,11 +1278,14 @@
     moonFlowers(A, rnd);
     rocks(A, rnd);
     tree(A, rnd);
-    board(A, tex, rnd);
     rabbit(A, mats);
     swing(A, tex, mats, rnd);
     gate(A, tex, rnd);
     A.build(mats, g);
+    // 留言板放在草原上：从出生点走向小屋的小路左边，正对着小路
+    const AE = new Acc(), bx = -3.4, bz = 19.2;
+    M.earthBoard = board(AE, tex, rnd, { x: bx, y: G.Field.height(bx, bz) - 0.04, z: bz, ry: 0.68, parent: M.scene, cols: G.Colliders, enabled: () => !M.on });
+    AE.build(mats, M.scene);
     // 空中慢慢飘的光尘
     const mp = [];
     for (let i = 0; i < 150; i++) {

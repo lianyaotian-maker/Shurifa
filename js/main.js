@@ -82,6 +82,7 @@
   G.Life.build(scene);
   G.Night.build(scene, camera);
   G.Moon.build(scene, { hemi, sun, fill }, camera);
+  G.Fireflies.build(scene, G.Moon.earthBoard);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -355,7 +356,7 @@
     clearTimeout(toastT);
     toastT = setTimeout(() => el.classList.remove('on'), 5200);
   }
-  // 月亮上的留言板
+  // 留言板（草原小路边）
   const bdEl = $('board'), bdList = $('bdList'), bdText = $('bdText'), bdName = $('bdName'), bdSend = $('bdSend'), bdState = $('bdState');
   try { bdName.value = store.get('grass-house-name') || ''; } catch (e) { /* 忽略 */ }
   function fmtDate(s) {
@@ -687,6 +688,7 @@
     G.Player.update(dt);
     G.Night.update(dt, clock, camera, G.Player);
     G.Moon.update(dt, clock, G.Player);
+    G.Fireflies.update(dt, clock, G.Player);
     G.Nature.update(camera);
     G.House.update(dt, G.Player, U.uSnow.value, G.Cat);
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);
