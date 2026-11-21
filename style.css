@@ -401,33 +401,40 @@ body.moon #datebar, body.moon #dn { visibility: hidden; }
 #toast.on { opacity: 1; transform: translate(-50%, 0); }
 #board {
   position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
-  padding: 12px max(16px, var(--sar)) 12px max(16px, var(--sal));
+  padding: 10px max(12px, var(--sar)) 10px max(12px, var(--sal));
   background: rgba(12, 14, 34, 0.5); opacity: 0; transition: opacity 0.35s ease; touch-action: manipulation;
 }
 #board.on { opacity: 1; }
+/* 几乎铺满屏幕：横屏时左边看留言、右边写；窄的时候上下排 */
 #board .card {
-  width: min(560px, 100%); max-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
-  padding: 14px 16px; border-radius: 16px; color: #2e2a3e;
+  width: min(980px, 100%); height: 100%; max-height: 640px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
+  padding: 16px 20px; border-radius: 18px; color: #2e2a3e;
   background: linear-gradient(170deg, #fbf8f1, #efe9dc); box-shadow: 0 16px 44px rgba(10, 8, 30, 0.5);
   -webkit-user-select: text; user-select: text;
 }
 .bd-head { display: flex; justify-content: space-between; align-items: center; }
-.bd-head b { font-size: 16px; letter-spacing: 0.16em; color: #5a3a6a; }
-#bdClose, #bdSend { padding: 6px 16px; border-radius: 14px; border: 1px solid rgba(90, 58, 106, 0.35); background: #fff; color: #5a3a6a; font-size: 13px; letter-spacing: 0.1em; }
+.bd-head b { font-size: 19px; letter-spacing: 0.16em; color: #5a3a6a; }
+#bdClose, #bdSend { padding: 8px 20px; border-radius: 16px; border: 1px solid rgba(90, 58, 106, 0.35); background: #fff; color: #5a3a6a; font-size: 15px; letter-spacing: 0.1em; }
 #bdSend { background: #5a3a6a; color: #fff; border-color: #5a3a6a; }
 #bdSend:disabled { opacity: 0.45; }
-#bdList { flex: 1; min-height: 60px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }
-.bd-note { padding: 8px 12px; border-radius: 10px; background: #fff; box-shadow: 0 1px 3px rgba(60, 40, 80, 0.12); }
-.bd-note p { margin: 3px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-.bd-meta { font-size: 11px; color: #8a7a96; }
+.bd-body { flex: 1; min-height: 0; display: flex; gap: 16px; }
+#bdList { flex: 1.4; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 2px 6px 2px 2px; }
+.bd-note { padding: 10px 14px; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(60, 40, 80, 0.12); }
+.bd-note p { margin: 4px 0 0; font-size: 16px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.bd-meta { font-size: 12.5px; color: #8a7a96; }
 .bd-note.pending { background: #fbf7ff; box-shadow: none; outline: 1px dashed rgba(120, 90, 150, 0.45); }
 .bd-note.pending .bd-meta { color: #a0709a; }
-.bd-empty { margin: 8px 0; font-size: 13px; color: #8a7a96; text-align: center; }
-.bd-form { display: flex; flex-direction: column; gap: 6px; }
-#bdName, #bdText { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 10px; border: 1px solid #d8cfe0; background: #fff; color: #2e2a3e; font: inherit; font-size: 14px; }
-#bdText { resize: none; }
+.bd-empty { margin: 8px 0; font-size: 15px; color: #8a7a96; text-align: center; }
+.bd-form { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+/* 16px 的字：iPhone 上点输入框时页面不会自动放大 */
+#bdName, #bdText { width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 12px; border: 1px solid #d8cfe0; background: #fff; color: #2e2a3e; font: inherit; font-size: 16px; }
+#bdText { flex: 1; min-height: 96px; resize: none; line-height: 1.55; }
 .bd-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-#bdState { font-size: 12px; color: #8a6a96; }
+#bdState { font-size: 13px; color: #8a6a96; }
+#board.narrow .bd-body { flex-direction: column; gap: 10px; }
+#board.narrow #bdList { flex: 1; }
+#board.narrow .bd-form { flex: none; }
+#board.narrow #bdText { flex: none; min-height: 0; height: 84px; }
 
 /* ---------- 长椅上的信 ---------- */
 #letter {

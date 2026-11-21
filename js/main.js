@@ -466,6 +466,8 @@
   G.UI = {
     toast,
     board() {
+      // 画面比较窄（竖着、小屏）时上下排，宽的时候左右分栏
+      bdEl.classList.toggle('narrow', G.view.w < 640);
       bdEl.hidden = false;
       G.Player.enabled = false;
       G.Player.jx = G.Player.jy = 0;
