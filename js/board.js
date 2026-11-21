@@ -5,23 +5,28 @@
    - 网站上还有一份定时保存的备份 board.json（和网页放在一起，网页能打开它就能打开）
    - 寄不出去的留言先存在手机里，网络好了自动寄出，不会丢
    附图：手机上先把照片压成 JPEG（最长边 1280 像素，几百 KB 以内，顺便去掉拍摄地点等信息），
-   和留言存在同一条里；列表只取文字，图片滚到眼前才单独加载 */
+   和留言存在同一条里；列表只取文字，图片滚到眼前才单独加载。
+   语音：录好的 MP3（见 voice.js）也存在同一条里，点了播放才去取 */
 (function () {
   'use strict';
   const B = {};
   const cfg = () => G.Config || {};
   B.ready = () => !!(cfg().supabaseUrl && cfg().supabaseKey);
-  const base = () => cfg().supabaseUrl.replace(/\/$/, '') + '/rest/v1/messages';
-  const key = () => encodeURIComponent(cfg().supabaseKey);
+  // 某张表的地址（留言板是 messages，画廊是 gallery）
+  B.rest = (table) => cfg().supabaseUrl.replace(/\/$/, '') + '/rest/v1/' + table;
+  const base = () => B.rest('messages');
+  const key = (B.key = () => encodeURIComponent(cfg().supabaseKey));
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } },
     // 存不下（比如空间满了）时返回 false
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
   };
   const CACHE = 'grass-house-board-cache', OUTBOX = 'grass-house-board-outbox';
-  // 数据库里有没有图片那一栏（还没加的话就不显示附图按钮）
+  // 数据库里有没有图片、语音那两栏（还没加的话就不显示附图、录音按钮）
   B.images = null;
+  B.store = store;
 
+  B.req = req;
   async function req(url, opt, ms) {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
     let t;
@@ -39,10 +44,10 @@
     while (tries < 2) {
       const ms = tries ? 25000 : 15000;
       try {
-        const cols = 'id,created_at,name,body' + (B.images === false ? '' : ',has_image');
+        const cols = 'id,created_at,name,body' + (B.images === false ? '' : ',has_image,has_voice');
         const r = await req(base() + '?select=' + cols + '&order=created_at.desc&limit=200&apikey=' + key(), {}, ms);
         if (r.status === 400 && B.images !== false) {
-          // 还没有图片那一栏：先按只有文字的方式读
+          // 还没有图片、语音那两栏：先按只有文字的方式读
           B.images = false;
           continue;
         }
@@ -71,37 +76,43 @@
       return null;
     }
   };
-  // 单独取一条留言的图片（取过的记在内存里）
-  const imgs = new Map();
-  B.image = function (id) {
-    if (!imgs.has(id)) {
+  // 单独取一条记录里的大字段（图片、语音），取过的记在内存里
+  const big = new Map();
+  B.field = function (table, id, col) {
+    const k = table + '/' + id + '/' + col;
+    if (!big.has(k)) {
       const p = (async () => {
         for (const ms of [20000, 30000]) {
           try {
-            const r = await req(base() + '?select=image&id=eq.' + encodeURIComponent(id) + '&apikey=' + key(), {}, ms);
+            const r = await req(B.rest(table) + '?select=' + col + '&id=eq.' + encodeURIComponent(id) + '&apikey=' + key(), {}, ms);
             if (!r.ok) continue;
             const row = (await r.json())[0];
-            return row && row.image ? row.image : null;
+            return row && row[col] ? row[col] : null;
           } catch (e) { /* 再试一次 */ }
         }
-        throw new Error('image');
+        throw new Error(col);
       })();
-      imgs.set(id, p);
-      p.catch(() => imgs.delete(id));
+      big.set(k, p);
+      p.catch(() => big.delete(k));
     }
-    return imgs.get(id);
+    return big.get(k);
   };
+  B.image = (id) => B.field('messages', id, 'image');
+  B.voice = (id) => B.field('messages', id, 'voice');
 
   /* ---------- 图片压缩 ---------- */
   // 读进照片 → 缩到最长边 1280（还大就 960）→ 压成 JPEG，直到 data URL 不超过约 400 KB
-  B.compress = function (file) {
+  // sizes 是依次尝试的最长边，limit 是 data URL 的长度上限
+  B.compress = function (file, sizes, limit) {
+    sizes = sizes || [1280, 960, 720];
+    limit = limit || 400000;
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
       const im = new Image();
       im.onload = () => {
         URL.revokeObjectURL(url);
         try {
-          for (const max of [1280, 960, 720]) {
+          for (const max of sizes) {
             const s = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
             const w = Math.max(1, Math.round(im.naturalWidth * s)), h = Math.max(1, Math.round(im.naturalHeight * s));
             const c = document.createElement('canvas');
@@ -113,7 +124,7 @@
             x.drawImage(im, 0, 0, w, h);
             for (const q of [0.82, 0.72, 0.62, 0.52]) {
               const d = c.toDataURL('image/jpeg', q);
-              if (d.length <= 400000) return resolve(d);
+              if (d.length <= limit) return resolve(d);
             }
           }
           reject(new Error('too big'));
@@ -131,20 +142,21 @@
 
   /* ---------- 写 ---------- */
   // 用表单格式提交，也不需要预检
-  B.send = async function (name, body, image) {
+  B.send = async function (name, body, image, voice) {
     const f = new URLSearchParams();
     if (name) f.set('name', name);
     f.set('body', body || '');
     if (image) f.set('image', image);
-    const r = await req(base() + '?apikey=' + key(), { method: 'POST', body: f }, image ? 45000 : 25000);
+    if (voice) f.set('voice', voice);
+    const r = await req(base() + '?apikey=' + key(), { method: 'POST', body: f }, image || voice ? 45000 : 25000);
     if (!r.ok) throw new Error('send ' + r.status);
     return true;
   };
   // 寄不出去的先放进“待寄”；手机里存不下时返回 false
   B.pending = () => store.get(OUTBOX) || [];
-  B.queue = function (name, body, image) {
+  B.queue = function (name, body, image, voice) {
     const q = B.pending();
-    q.push({ name: name || null, body: body || '', image: image || null, t: Date.now() });
+    q.push({ name: name || null, body: body || '', image: image || null, voice: voice || null, t: Date.now() });
     return store.set(OUTBOX, q);
   };
   // 把待寄的寄出去。rows 是刚从数据库读到的留言：如果某条其实已经寄到了（只是当时没收到回应），就不再重复寄
@@ -157,10 +169,10 @@
     let sent = 0;
     try {
       for (const m of q.slice()) {
-        const already = (rows || []).some((r) => r.body === m.body && (r.name || null) === m.name && !!r.has_image === !!m.image && Date.parse(r.created_at) > m.t - 120000);
+        const already = (rows || []).some((r) => r.body === m.body && (r.name || null) === m.name && !!r.has_image === !!m.image && !!r.has_voice === !!m.voice && Date.parse(r.created_at) > m.t - 120000);
         if (!already) {
           try {
-            await B.send(m.name, m.body, m.image);
+            await B.send(m.name, m.body, m.image, m.voice);
           } catch (e) {
             break; // 还是寄不出去，下次再说
           }

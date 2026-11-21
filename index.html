@@ -68,12 +68,34 @@
     <div class="bd-form">
       <input id="bdName" maxlength="20" placeholder="署名（可以不写）" autocomplete="off">
       <textarea id="bdText" maxlength="300" rows="3" placeholder="想说点什么？写下来挂在留言板上"></textarea>
-      <div id="bdPrev" hidden></div>
-      <div class="bd-foot"><button id="bdPick" type="button" hidden>附图</button><input id="bdFile" type="file" accept="image/*" hidden><span id="bdState" aria-live="polite"></span><button id="bdSend">挂上去</button></div>
+      <div class="bd-att"><div id="bdPrev" hidden></div><div id="bdVc" class="vc-chip" hidden></div></div>
+      <div class="bd-foot"><button id="bdPick" type="button" hidden>附图</button><button id="bdRec" class="vc-rec" type="button" hidden>录音</button><input id="bdFile" type="file" accept="image/*" hidden><span id="bdState" aria-live="polite"></span><button id="bdSend">挂上去</button></div>
     </div>
     </div>
   </div>
   <div id="bdView" hidden role="button" aria-label="点一下收起大图"></div>
+</div>
+<div id="gal" hidden role="dialog" aria-label="草原画廊">
+  <div class="card">
+    <div class="gl-head"><button id="glBack" type="button" hidden>‹ 回到画册</button><b id="glTitle">草原画廊</b><button id="glClose" type="button" aria-label="收起画廊">收起</button></div>
+    <div id="glViewP" class="gl-pane" hidden>
+      <div class="gl-pic"><img id="glImg" alt="画廊里的一幅画"><span id="glLoad"></span><button id="glPrev" class="gl-arrow l" type="button" aria-label="上一幅">‹</button><button id="glNext" class="gl-arrow r" type="button" aria-label="下一幅">›</button></div>
+      <div class="gl-info"><p id="glCap"></p><div id="glMeta"></div><button id="glVoice" class="bd-voice" type="button" hidden>▶ 听听这幅画的故事</button></div>
+    </div>
+    <div id="glUpP" class="gl-pane" hidden>
+      <button id="glPick" class="gl-pick" type="button">点这里选一张图片</button><input id="glFile" type="file" accept="image/*" hidden>
+      <div class="gl-form">
+        <input id="glName" maxlength="20" placeholder="署名（可以不写）" autocomplete="off">
+        <input id="glCapIn" maxlength="60" placeholder="给这幅画写一句话（可以不写）" autocomplete="off">
+        <div class="gl-vrow"><button id="glRec" class="vc-rec" type="button" hidden>录一段话讲讲这幅画</button><div id="glVc" class="vc-chip" hidden></div></div>
+        <div class="bd-foot"><span id="glState" aria-live="polite"></span><button id="glSend" type="button">挂上墙</button></div>
+      </div>
+    </div>
+    <div id="glAlbP" class="gl-pane" hidden>
+      <div id="glGrid" class="gl-grid"></div>
+      <div class="gl-nav"><button id="glPgPrev" type="button">‹ 上一页</button><span id="glPgNo"></span><button id="glPgNext" type="button">下一页 ›</button></div>
+    </div>
+  </div>
 </div>
 <div id="toast" aria-live="polite"></div>
 <div id="moonfade" aria-hidden="true"></div>
@@ -122,7 +144,9 @@
 <script src="js/moon.js"></script>
 <script src="js/moon2.js"></script>
 <script src="js/fireflies.js"></script>
+<script src="js/gallery.js"></script>
 <script src="js/board.js"></script>
+<script src="js/voice.js"></script>
 <script src="js/player.js"></script>
 <script src="js/main.js"></script>
 </body>

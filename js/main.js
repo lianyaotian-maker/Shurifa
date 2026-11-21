@@ -83,6 +83,7 @@
   G.Night.build(scene, camera);
   G.Moon.build(scene, { hemi, sun, fill }, camera);
   G.Fireflies.build(scene, G.Moon.earthBoard);
+  G.Gallery.build(scene);
   G.Player.init(camera, renderer.domElement, { joyBase: $('joy'), joyKnob: $('knob') });
 
   function setQuality(q) {
@@ -370,8 +371,11 @@
   // 附图：选一张照片 → 压缩 → 在写字框下面显示小图，可以点 × 去掉
   const bdPick = $('bdPick'), bdFile = $('bdFile'), bdPrev = $('bdPrev'), bdView = $('bdView');
   let bdImg = null;
+  // 录音：按钮和录好后的小条
+  const bdVoice = G.Voice.widget($('bdRec'), $('bdVc'), (t) => { bdState.textContent = t; });
   function bdShowPick() {
     bdPick.hidden = G.Board.images !== true;
+    bdVoice.show(G.Board.images === true);
   }
   function bdSetImg(d) {
     bdImg = d;
@@ -431,6 +435,29 @@
       box.classList.add('err');
     });
   }
+  // 语音留言：一个小气泡，点了才去取录音，再点一下停
+  function bdVoiceBtn(r) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bd-voice';
+    const idle = '▶ 听语音';
+    b.textContent = idle;
+    const key = r.pending ? 'pend-' + r.created_at : 'msg-' + r.id;
+    b.addEventListener('click', async () => {
+      if (G.Voice.playing() === key) return G.Voice.stopPlay();
+      b.textContent = '加载中…';
+      try {
+        const url = r.pending ? r.voice : await G.Board.voice(r.id);
+        if (!url) { b.textContent = '语音不见了'; return; }
+        const on = G.Voice.play(url, key, () => { b.textContent = idle; b.classList.remove('on'); });
+        b.textContent = on ? '■ 正在播放，点一下停' : idle;
+        b.classList.toggle('on', on);
+      } catch (e) {
+        b.textContent = '没加载出来，点一下再试';
+      }
+    });
+    return b;
+  }
   function bdImgBox(r) {
     const box = document.createElement('div');
     box.className = 'bd-img';
@@ -455,7 +482,7 @@
   }
   // 待寄的留言也显示在最上面，标上“等待寄出”
   function bdRender(rows) {
-    const pend = G.Board.pending().slice().reverse().map((m) => ({ name: m.name, body: m.body, image: m.image, has_image: !!m.image, created_at: new Date(m.t).toISOString(), pending: true }));
+    const pend = G.Board.pending().slice().reverse().map((m) => ({ name: m.name, body: m.body, image: m.image, has_image: !!m.image, voice: m.voice, has_voice: !!m.voice, created_at: new Date(m.t).toISOString(), pending: true }));
     rows = pend.concat(rows || []);
     bdList.innerHTML = '';
     if (!rows.length) {
@@ -477,6 +504,7 @@
         b.textContent = r.body;
         it.appendChild(b);
       }
+      if (r.has_voice) it.appendChild(bdVoiceBtn(r));
       if (r.has_image) it.appendChild(bdImgBox(r));
       bdList.appendChild(it);
     }
@@ -517,26 +545,29 @@
   }
   let lastSend = 0;
   bdSend.addEventListener('click', async () => {
-    const body = bdText.value.trim().slice(0, 300), name = bdName.value.trim().slice(0, 20), image = bdImg;
-    if (!body && !image) { bdState.textContent = '先写点什么吧'; return; }
+    if (G.Voice.recording()) { bdState.textContent = '先点录音按钮停下来'; return; }
+    const body = bdText.value.trim().slice(0, 300), name = bdName.value.trim().slice(0, 20), image = bdImg, voice = bdVoice.data && bdVoice.data.url;
+    if (!body && !image && !voice) { bdState.textContent = '先写点什么吧'; return; }
     if (Date.now() - lastSend < 15000) { bdState.textContent = '慢一点，过几秒再写下一条'; return; }
     bdSend.disabled = true;
-    bdState.textContent = image ? '正在寄出（带着图片，要稍等一会儿）…' : '正在寄出…';
+    bdState.textContent = image || voice ? '正在寄出（带着' + (image ? '图片' : '语音') + '，要稍等一会儿）…' : '正在寄出…';
     store.set('grass-house-name', name);
     lastSend = Date.now();
     try {
-      await G.Board.send(name, body, image);
+      await G.Board.send(name, body, image, voice);
       bdText.value = '';
       bdSetImg(null);
+      bdVoice.set(null);
       bdState.textContent = '已经挂在留言板上了';
       G.Audio.sfx('paper');
       await bdLoad(true);
       bdState.textContent = '已经挂在留言板上了';
     } catch (e) {
       // 寄不出去：先存在手机里，网络好了自动寄出（图片太大存不下时，写的字和图片都留在框里）
-      if (G.Board.queue(name, body, image)) {
+      if (G.Board.queue(name, body, image, voice)) {
         bdText.value = '';
         bdSetImg(null);
+        bdVoice.set(null);
         bdRender(bdRows || []);
         bdState.textContent = '网络不太好，先帮你存着了，连上以后会自动挂上去';
       } else bdState.textContent = '网络不太好，没寄出去，写的内容还在，过一会儿再点“挂上去”';
@@ -557,6 +588,8 @@
   function closeBd() {
     clearTimeout(bdRetry);
     bdView.hidden = true;
+    bdVoice.cancel();
+    G.Voice.stopPlay();
     bdEl.classList.remove('on');
     setTimeout(() => { if (!bdEl.classList.contains('on')) bdEl.hidden = true; }, 400);
     G.Player.enabled = true;
@@ -791,6 +824,7 @@
     G.Night.update(dt, clock, camera, G.Player);
     G.Moon.update(dt, clock, G.Player);
     G.Fireflies.update(dt, clock, G.Player);
+    G.Gallery.update(dt, clock, G.Player);
     G.Nature.update(camera);
     G.House.update(dt, G.Player, U.uSnow.value, G.Cat);
     G.Interior.update(dt, clock, B.amt, B.on || B.amt > 0.5);

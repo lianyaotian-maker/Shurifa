@@ -379,9 +379,16 @@
   A.resume = function () {
     if (A.ctx && A.ctx.state !== 'running') A.ctx.resume().catch(() => {});
   };
+  // 播放语音时把其他声音（环境声、八音盒）压低
+  let duckK = 1;
+  const busGain = () => (A.on ? 0.9 : 0) * duckK;
   A.setOn = function (on) {
     A.on = on;
-    if (A.bus) A.bus.out.gain.setTargetAtTime(on ? 0.9 : 0, A.ctx.currentTime, 0.05);
+    if (A.bus) A.bus.out.gain.setTargetAtTime(busGain(), A.ctx.currentTime, 0.05);
+  };
+  A.duck = function (on) {
+    duckK = on ? 0.25 : 1;
+    if (A.bus) A.bus.out.gain.setTargetAtTime(busGain(), A.ctx.currentTime, on ? 0.08 : 0.4);
   };
   const ready = () => A.ctx && A.on && A.ctx.state === 'running';
   const now = () => A.ctx.currentTime + 0.02;

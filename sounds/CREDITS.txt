@@ -40,6 +40,12 @@ Moon (月中世界)
 - Moon footsteps reuse the wooden-bridge and gravel recordings above,
   re-pitched and filtered (stone and lunar dust).
 
+Voice recording
+- Voice messages are encoded to MP3 in the browser with lamejs 1.2.1
+  (js/lame.min.js), a JavaScript port of LAME — https://lame.sourceforge.io/
+  — used unmodified under the GNU LGPL 3.0 (see js/lame.LICENSE.txt and
+  https://github.com/zhuker/lamejs).
+
 Fonts
 - Great Vibes (fonts/GreatVibes.woff2) — SIL Open Font License 1.1, see fonts/GreatVibes-OFL.txt
 
