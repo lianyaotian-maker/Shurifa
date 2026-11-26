@@ -385,10 +385,22 @@
   A.setOn = function (on) {
     A.on = on;
     if (A.bus) A.bus.out.gain.setTargetAtTime(busGain(), A.ctx.currentTime, 0.05);
+    if (cur && cur.type === 'song') cur.el.muted = !on;
   };
   A.duck = function (on) {
     duckK = on ? 0.25 : 1;
     if (A.bus) A.bus.out.gain.setTargetAtTime(busGain(), A.ctx.currentTime, on ? 0.08 : 0.4);
+    // 八音盒里的歌：能调音量就调小；iPhone 上调不了音量，就先暂停，语音放完再接着放
+    const c = cur;
+    if (!c || c.type !== 'song' || !c.url) return;
+    c.el.volume = on ? 0.25 : 1;
+    if (on && c.el.volume > 0.9 && !c.el.paused) {
+      c.hold = c.ducked = true;
+      c.el.pause();
+    } else if (!on && c.ducked) {
+      c.hold = c.ducked = false;
+      resumeSong();
+    }
   };
   const ready = () => A.ctx && A.on && A.ctx.state === 'running';
   const now = () => A.ctx.currentTime + 0.02;
@@ -727,10 +739,15 @@
     }
   };
   /* ---------- 八音盒 ----------
-     你的歌：从文件边下边放，单曲循环，全地图一样大声，只有回到八音盒点“停止”才会停。
+     你的歌：先把整首歌下载到手机里再放，所以放的过程中网络再差也不会断：
+       - 下载时显示百分比；网断了会从断的地方接着下，卡住 15 秒没动静就重连
+       - 下好的歌存进手机的缓存，下次点开不用等
+       - 用一个固定的播放器单曲循环（不经过 Web Audio，iPhone 上更稳）；被来电、锁屏、切走打断以后，
+         回到网页或者点一下屏幕就接着放。只有回到八音盒点“停止”才会停
      生日歌：八音盒音色，循环，离得越远越小声，出了屋会变闷。 */
   A.songs = [];
   let cur = null;
+  const SONG_CACHE = 'grass-house-songs';
   A.loadSongList = async function () {
     try {
       const man = await (await fetch('sounds/sounds.json?t=' + Date.now(), { cache: 'no-store' })).json();
@@ -739,47 +756,198 @@
     } catch (e) {
       A.songs = [];
     }
+    cleanSongCache();
     return A.songs;
   };
-  A.nowPlaying = () => (cur ? { type: cur.type, idx: cur.idx, loading: !!cur.loading } : null);
+  A.nowPlaying = () => (cur ? { type: cur.type, idx: cur.idx, loading: !!cur.loading, progress: cur.progress || 0 } : null);
+  const songMsg = (err) => { if (A.onMusic) A.onMusic(err); };
+
+  // 缓存里只留现在这几首（换了版本的旧文件删掉）
+  async function cleanSongCache() {
+    try {
+      const want = new Set(A.songs.map((s) => new URL(A.songURL(s.file), location.href).href));
+      const c = await caches.open(SONG_CACHE);
+      for (const req of await c.keys()) if (!want.has(req.url)) await c.delete(req);
+    } catch (e) { /* 没有缓存功能就算了 */ }
+  }
+  // 哪几首已经存在手机里了
+  A.cachedSongs = async function () {
+    const out = new Set();
+    try {
+      const c = await caches.open(SONG_CACHE);
+      for (let i = 0; i < A.songs.length; i++) if (await c.match(A.songURL(A.songs[i].file))) out.add(i);
+    } catch (e) { /* 忽略 */ }
+    return out;
+  };
+
+  // 下载一首歌：先看缓存；没有就下载，断了用 Range 从断点接着下
+  async function fetchSong(url, onProg, signal) {
+    try {
+      const hit = await (await caches.open(SONG_CACHE)).match(url);
+      if (hit) {
+        onProg(1);
+        return await hit.blob();
+      }
+    } catch (e) { /* 没有缓存功能 */ }
+    const parts = [];
+    let got = 0, total = 0, tries = 0, type = /\.m4a$/i.test(url) ? 'audio/mp4' : 'audio/mpeg';
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    for (;;) {
+      if (signal.aborted) throw new Error('abort');
+      const ctl = new AbortController(), stop = () => ctl.abort();
+      signal.addEventListener('abort', stop);
+      let idle = 0;
+      const dog = setInterval(() => { if (++idle >= 15) ctl.abort(); }, 1000); // 15 秒没收到数据就重连
+      try {
+        const r = await fetch(url, { signal: ctl.signal, cache: got ? 'no-store' : 'default', headers: got ? { Range: 'bytes=' + got + '-' } : {} });
+        if (!r.ok) {
+          const e = new Error('song ' + r.status);
+          e.fatal = r.status >= 400 && r.status < 500 && r.status !== 408 && r.status !== 429; // 文件不存在之类：不用再试
+          throw e;
+        }
+        if (got && r.status !== 206) {
+          // 服务器不支持接着下：从头再来
+          parts.length = 0;
+          got = 0;
+        }
+        const cr = (r.headers.get('content-range') || '').match(/\/(\d+)$/), cl = Number(r.headers.get('content-length')) || 0;
+        if (cr) total = Number(cr[1]);
+        else if (!got && cl) total = cl;
+        type = r.headers.get('content-type') || type;
+        if (r.body && r.body.getReader) {
+          const rd = r.body.getReader();
+          for (;;) {
+            const { done, value } = await rd.read();
+            if (done) break;
+            idle = 0;
+            parts.push(value);
+            got += value.length;
+            onProg(total ? Math.min(0.99, got / total) : 0);
+          }
+        } else {
+          const b = new Uint8Array(await r.arrayBuffer());
+          parts.push(b);
+          got += b.length;
+        }
+        if (!total || got >= total) break;
+        throw new Error('short');
+      } catch (e) {
+        if (signal.aborted || e.fatal) throw e;
+        if (++tries > 8) throw e;
+        await sleep(Math.min(8000, 800 * tries));
+      } finally {
+        clearInterval(dog);
+        signal.removeEventListener('abort', stop);
+      }
+    }
+    const blob = new Blob(parts, { type });
+    try { await (await caches.open(SONG_CACHE)).put(url, new Response(blob, { headers: { 'Content-Type': type } })); } catch (e) { /* 存不下也能放 */ }
+    onProg(1);
+    return blob;
+  }
+
+  // 一个固定的播放器：在点歌的那一下先“解锁”它（iPhone 只允许在点击时开始播放，下载完再放就不算点击了）
+  let songEl = null, silent = null;
+  function silentURL() {
+    if (!silent) {
+      const n = 800, b = new Uint8Array(44 + n), d = new DataView(b.buffer);
+      const w = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+      w(0, 'RIFF'); d.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+      d.setUint32(24, 8000, true); d.setUint32(28, 8000, true); d.setUint16(32, 1, true); d.setUint16(34, 8, true); w(36, 'data'); d.setUint32(40, n, true);
+      b.fill(128, 44);
+      silent = URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+    }
+    return silent;
+  }
+  function songPlayer() {
+    if (songEl) return songEl;
+    const el = (songEl = new Audio());
+    el.setAttribute('playsinline', '');
+    el.preload = 'auto';
+    // 不是我们自己暂停的（来电、别的 App 放声音等）：记下来，回到网页或点一下屏幕时接着放
+    el.addEventListener('pause', () => { if (cur && cur.type === 'song' && cur.el === el && cur.url && !cur.hold && !el.ended) cur.interrupted = true; });
+    el.addEventListener('playing', () => { if (cur && cur.el === el) cur.interrupted = false; });
+    el.addEventListener('error', () => {
+      const c = cur;
+      if (!c || c.type !== 'song' || !c.url || c.retried) return;
+      c.retried = true; // 本地文件也出错：重新载入一次
+      el.src = c.url;
+      el.play().catch(() => { c.interrupted = true; });
+    });
+    return el;
+  }
+  function unlockPlayer(el) {
+    el.loop = false;
+    el.src = silentURL();
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+  // 被打断后接着放（点屏幕、回到网页时调用）
+  function resumeSong() {
+    const c = cur;
+    if (!c || c.type !== 'song' || !c.url || c.hold || !c.el.paused) return;
+    c.el.play().then(() => { c.interrupted = false; }).catch(() => {});
+  }
+  A.resumeSong = resumeSong;
+  A.songPlayer = () => songEl;
+
   A.stopMusic = function () {
     if (!cur) return;
-    const c = cur, t = A.ctx ? A.ctx.currentTime : 0;
+    const c = cur;
     cur = null;
     tuneStop = 0;
-    c.g.gain.setTargetAtTime(0, t, 0.08);
-    setTimeout(() => {
-      if (c.el) {
-        c.el.pause();
-        c.el.removeAttribute('src');
-        c.el.load();
-      }
-      try { (c.node || c.g).disconnect(); } catch (e) { /* 忽略 */ }
-    }, 500);
-    if (A.onMusic) A.onMusic();
+    if (c.type === 'song') {
+      c.hold = true;
+      if (c.ctl) c.ctl.abort();
+      c.el.pause();
+      c.el.removeAttribute('src');
+      c.el.load();
+      if (c.url) setTimeout(() => URL.revokeObjectURL(c.url), 1000);
+    } else {
+      const t = A.ctx ? A.ctx.currentTime : 0;
+      c.g.gain.setTargetAtTime(0, t, 0.08);
+      setTimeout(() => { try { c.g.disconnect(); } catch (e) { /* 忽略 */ } }, 500);
+    }
+    songMsg();
   };
   A.playSong = function (idx) {
-    if (!A.ctx) return;
-    A.resume();
+    A.init();
     A.stopMusic();
     const song = A.songs[idx];
     if (!song) return;
-    const el = new Audio();
-    el.src = A.songURL(song.file);
-    el.loop = true;
-    el.preload = 'auto';
-    el.setAttribute('playsinline', '');
-    const node = A.ctx.createMediaElementSource(el), g = A.ctx.createGain();
-    g.gain.value = 0.9;
-    node.connect(g);
-    g.connect(A.bus.out);
-    const c = (cur = { type: 'song', idx, el, node, g, loading: true });
-    const fail = () => { if (cur === c) { cur = null; if (A.onMusic) A.onMusic('error'); } };
-    el.addEventListener('playing', () => { if (cur === c) { c.loading = false; if (A.onMusic) A.onMusic(); } });
-    el.addEventListener('error', fail);
-    const p = el.play();
-    if (p && p.catch) p.catch(fail);
-    if (A.onMusic) A.onMusic();
+    const el = songPlayer();
+    unlockPlayer(el);
+    const c = (cur = { type: 'song', idx, el, loading: true, progress: 0, ctl: new AbortController() });
+    let lastP = -1;
+    songMsg();
+    fetchSong(A.songURL(song.file), (p) => {
+      if (cur !== c) return;
+      c.progress = p;
+      if (p - lastP >= 0.03 || p === 1) {
+        lastP = p;
+        songMsg();
+      }
+    }, c.ctl.signal).then(async (blob) => {
+      if (cur !== c) return;
+      c.url = URL.createObjectURL(blob);
+      el.src = c.url;
+      el.loop = true;
+      el.muted = !A.on;
+      el.volume = duckK < 1 ? 0.25 : 1;
+      try {
+        await el.play();
+      } catch (e) {
+        // 播放被浏览器拦住了（很少见）：下好了，点一下屏幕就开始
+        c.interrupted = true;
+      }
+      if (cur !== c) return;
+      c.loading = false;
+      songMsg();
+    }).catch(() => {
+      if (cur !== c) return;
+      cur = null;
+      songMsg('error');
+    });
   };
   function scheduleTune(c, t0) {
     const T = TUNES.bday, bus = { ctx: A.ctx, out: c.g, wet: c.g };
@@ -915,11 +1083,26 @@
     }
   };
 
-  document.addEventListener('pointerdown', A.resume, true);
+  document.addEventListener('pointerdown', () => {
+    A.resume();
+    resumeSong();
+  }, true);
   document.addEventListener('visibilitychange', () => {
-    if (!A.ctx) return;
-    if (document.hidden) A.ctx.suspend().catch(() => {});
-    else A.resume();
+    // 切到后台：声音都停下；回来时接着放（八音盒的歌也是）
+    const c = cur && cur.type === 'song' && cur.url ? cur : null;
+    if (document.hidden) {
+      if (c && !c.el.paused) {
+        c.hold = c.bg = true;
+        c.el.pause();
+      }
+      if (A.ctx) A.ctx.suspend().catch(() => {});
+    } else {
+      if (A.ctx) A.resume();
+      if (c && c.bg) {
+        c.hold = c.bg = false;
+        resumeSong();
+      }
+    }
   });
   G.Audio = A;
 })();

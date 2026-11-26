@@ -320,10 +320,16 @@
   letterEl.addEventListener('click', (e) => { if (e.target === letterEl || e.target.id === 'letterClose') closeLetter(); });
   // 八音盒选歌面板
   const mbEl = $('musicbox'), mbList = $('mbList');
+  let mbSaved = new Set();
+  // 看看哪几首已经存在手机里（存好的点开不用等）
+  async function mbCheckSaved() {
+    mbSaved = await G.Audio.cachedSongs();
+    if (!mbEl.hidden) mbRender();
+  }
   function mbRender(err) {
     const np = G.Audio.nowPlaying(), items = [];
     if (B.on) items.push({ idx: -1, name: '生日快乐', note: '离得越远越小声' });
-    G.Audio.songs.forEach((s, i) => items.push({ idx: i, name: s.name, note: '全草原都听得到' }));
+    G.Audio.songs.forEach((s, i) => items.push({ idx: i, name: s.name, note: mbSaved.has(i) ? '已存在手机里 · 点开就放' : '全草原都听得到' }));
     mbList.innerHTML = '';
     for (const it of items) {
       const b = document.createElement('button');
@@ -331,7 +337,7 @@
       b.className = 'mb-song' + (on ? (np.loading ? ' wait' : ' on') : '');
       b.innerHTML = '<span class="eq"><i></i><i></i><i></i></span><span></span><small></small>';
       b.children[1].textContent = it.name;
-      b.children[2].textContent = on && np.loading ? '加载中…' : it.note;
+      b.children[2].textContent = on && np.loading ? (np.progress > 0 && np.progress < 1 ? '下载中 ' + Math.round(np.progress * 100) + '%（下好就放）' : '准备中…') : it.note;
       b.addEventListener('click', () => {
         G.Audio.init();
         if (it.idx < 0) G.Audio.playBirthday();
@@ -341,7 +347,9 @@
       mbList.appendChild(b);
     }
     const cur = np && items.find((x) => x.idx === np.idx);
-    $('mbNow').textContent = err === 'error' ? '这首歌没能加载，换一首试试' : cur ? '正在放：' + cur.name : '没有在放歌';
+    $('mbNow').textContent = err === 'error' ? '网络不太好，这首歌没下载下来，再点一下试试' : cur ? (np.loading ? '正在下载：' : '正在放：') + cur.name : '没有在放歌';
+    // 刚下载完一首：更新“已存在手机里”
+    if (np && np.type === 'song' && !np.loading && !mbSaved.has(np.idx)) mbCheckSaved();
     $('mbStop').disabled = !np;
   }
   G.Audio.onMusic = (err) => { if (!mbEl.hidden) mbRender(err); };
@@ -618,6 +626,7 @@
       G.Player.enabled = false;
       G.Player.jx = G.Player.jy = 0;
       mbRender();
+      mbCheckSaved();
       requestAnimationFrame(() => mbEl.classList.add('on'));
     },
     // 长椅上的信用默认的那句；别处的信可以传进自己的内容
